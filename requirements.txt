@@ -1,0 +1,2 @@
+# Dependências serão adicionadas em Aulas futuras.
+# A aplicação da Aula 3 usa apenas a biblioteca padrão (stdlib).

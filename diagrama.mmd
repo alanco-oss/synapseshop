@@ -1,0 +1,64 @@
+flowchart TB
+    subgraph Cliente["Cliente"]
+        WEB["Web / Mobile / Postman"]
+    end
+
+    subgraph API["SynapseShop (API Backend)"]
+        ROTEADOR["Router / Middlewares"]
+
+        subgraph NUCLEO["Núcleo da Loja"]
+            PRODUTOS["/products<br>Catálogo de produtos"]
+            PEDIDOS["/orders<br>Gestão de pedidos"]
+            PAGAMENTO["/payments<br>Pagamento (simulado)"]
+            NOTIFICACOES["/notifications<br>E-mails / push simulado"]
+        end
+
+        subgraph IA["Camada de Inteligência Artificial"]
+            ASSIST["/assist<br>Assistente de suporte"]
+            SQL["/ask_sql<br>Consulta em linguagem natural"]
+
+            subgraph RAG["RAG - /ask_docs"]
+                INDEX["Indexador / Embeddings"]
+                VETORAL["Banco vetorial"]
+            end
+
+            DOCS["/ask_docs<br>Assistente de documentação"]
+
+        end
+    end
+
+    subgraph SERVICOS["Serviços externos"]
+        IA_SVC["Serviço de IA<br>(LLM externo)"]
+        DB[(Banco de dados<br>dados do negócio)]
+        README_DOC["README.md +<br>documentação da API"]
+    end
+
+    WEB --> ROTEADOR
+
+    ROTEADOR --> PRODUTOS
+    ROTEADOR --> PEDIDOS
+    ROTEADOR --> PAGAMENTO
+    ROTEADOR --> NOTIFICACOES
+
+    ROTEADOR --> ASSIST
+    ROTEADOR --> SQL
+    ROTEADOR --> DOCS
+
+    PRODUTOS --> DB
+    PEDIDOS --> DB
+    PAGAMENTO --> DB
+    SQL --> DB
+
+    ASSIST -- "com retry +<br>circuit breaker" --> IA_SVC
+    SQL -- "gera e executa SQL" --> IA_SVC
+    DOCS -- "consulta embeddings" --> VETORAL
+    INDEX -- "gera embeddings" --> IA_SVC
+    INDEX --> README_DOC
+    VETORAL --> README_DOC
+
+    classDef core fill:#e3f2fd,stroke:#1565c0
+    classDef ai fill:#f3e5f5,stroke:#6a1b9a
+    classDef ext fill:#e8f5e9,stroke:#2e7d32
+    class PRODUTOS,PEDIDOS,PAGAMENTO,NOTIFICACOES core
+    class ASSIST,SQL,DOCS,INDEX,VETORAL,RAG ai
+    class IA_SVC,DB,README_DOC ext

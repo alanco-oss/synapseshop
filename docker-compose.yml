@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: synapseshop-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-synapse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synapseshop}
+      POSTGRES_DB: ${POSTGRES_DB:-synapseshop}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-synapse} -d ${POSTGRES_DB:-synapseshop}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: synapseshop-api
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: synapseshop-api
+      APP_PORT: "8000"
+      APP_HOST: "0.0.0.0"
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
