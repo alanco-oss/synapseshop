@@ -5,3 +5,5 @@ __pycache__
 *.pyo
 .DS_Store
 .vscode
+*.sqlite3
+api/v1/products/db.sqlite3

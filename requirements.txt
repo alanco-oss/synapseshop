@@ -1,2 +1,3 @@
-# Dependências serão adicionadas em Aulas futuras.
-# A aplicação da Aula 3 usa apenas a biblioteca padrão (stdlib).
+Django==6.0.7
+djangorestframework==3.18.1
+gunicorn==26.2.0
