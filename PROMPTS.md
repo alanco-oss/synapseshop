@@ -100,6 +100,41 @@ Histórico de uso de IA generativa no desenvolvimento do SynapseShop.
   endpoints `/api/v1/`, status codes corretos (200/201/204/400/404), checklist
   IA-safe e coleção Postman versionados.
 
+#### 4. App de Catálogo (`catalog`) — Categorias e Itens
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Crie o app de catálogo de acordo com o md da aula 4" — a spec
+  (`specs/specs_da_aula_4.md`) define as entidades `Category` e `Item` e exige
+  os endpoints `/api/v1/categories/` e `/api/v1/items/`.
+- **Decisões tomadas:**
+  - Criado o app `catalog/` (`apps.py`, `models.py`, `serializers.py`,
+    `views.py`, `urls.py`, `migrations/`) registrado em `INSTALLED_APPS` como
+    `catalog.apps.CatalogConfig`.
+  - `Category`: `nome` (CharField 100, `unique`), `descricao` (TextField
+    `blank`). `Item`: `nome`, `descricao`, `preco` (DecimalField 10,2),
+    `estoque` (PositiveIntegerField default 0) e `categoria` (ForeignKey
+    `SET_NULL`, `null`/`blank`).
+  - `ModelSerializer`s com validação de negócio: `validate_preco` rejeita
+    preço negativo (`400 Bad Request`); FK inexistente e campo obrigatório
+    ausente também retornam `400`.
+  - `ModelViewSet`s (`CategoryViewSet`, `ItemViewSet`) registrados em
+    `DefaultRouter` sob `/api/v1/` (`catalog/urls.py` iterado em
+    `products/urls.py`).
+  - O artefato inicial `Produto` (model/serializer/viewset/rota
+    `/api/v1/produtos/`, que não satisfazia o DoD da Aula 4) foi removido e o
+    pacote `products/` ficou apenas como projeto/config (settings, urls, wsgi).
+  - `ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]` para permitir o
+    `runserver` local e o `APIClient` do DRF nos testes.
+- **Validação (IA-safe):** 15 requisições CRUD via `rest_framework.test.APIClient`
+  — `200` (list/retrieve/update), `201` (create), `204` (delete), `400`
+  (preço negativo, nome ausente, categoria inexistente) e `404` (id inexistente
+  e recurso excluído) — todas passaram. `manage.py check` sem issues e migração
+  `catalog/0001_initial` aplicada.
+- **Impacto:** endpoints CRUD funcionais em `/api/v1/categories/` e
+  `/api/v1/items/`, atendendo integralmente ao DoD da Aula 4. Postman
+  (`postman/collections/SynapseShop API.postman_collection.json`) e
+  Dockerfile (`HEALTHCHECK` para `/api/v1/items/`) atualizados.
+
 ---
 
 *Este arquivo crescerá a cada aula conforme o uso de IA generativa no projeto.*

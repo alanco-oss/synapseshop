@@ -48,10 +48,14 @@ abaixo para garantir que o código é seguro, tipado e aderente à spec ativa.
 ---
 
 ### Aplicação na Aula 4 (DRF CRUD)
-Revisado e comprovado em `/api/v1/produtos/`:
+Revisado e comprovado em `/api/v1/categories/` e `/api/v1/items/` (app `catalog`):
 
 - `GET` → `200 OK` de lista vazia; `GET /:id/` → `200 OK`
 - `POST` (payload válido) → `201 Created` com `id`
-- `PATCH` → `200 OK` com campos atualizados
+- `PUT` / `PATCH` → `200 OK` com campos atualizados
 - `DELETE` → `204 No Content`; segundo `GET` no mesmo id → `404 Not Found`
-- `POST` com `preco: "abc"` → `400 Bad Request` (rejeitado pelo serializer)
+- `POST` com `preco: "-5"` → `400 Bad Request` (validação customizada
+  `validate_preco` no `ItemSerializer`)
+- `POST` sem `nome` → `400 Bad Request` (campo obrigatório)
+- `POST` com `categoria` inexistente → `400 Bad Request`
+  (chave estrangeira inválida)
