@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from database import Base, DATABASE_URL
 from models.user import User
+from models.token import Token
 from alembic import context
 
 import sys

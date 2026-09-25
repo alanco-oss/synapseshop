@@ -16,3 +16,5 @@ def get_db():
         yield db
     finally:
         db.close()
+JWT_SECRET = os.getenv("JWT_SECRET", "chave-de-desenvolvimento-trocar-em-producao")
+JWT_ALGORITHM = "HS256"

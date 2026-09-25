@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from models.user import User
-
+from models.user import UserRole
 
 class UserRepository:
     def __init__(self, db: Session):
@@ -19,8 +19,15 @@ class UserRepository:
     def buscar_por_email(self, email: str) -> User | None:
         return self.db.query(User).filter(User.email == email).first()
 
-    def listar(self, offset: int, limite: int) -> list[User]:
-        return self.db.query(User).offset(offset).limit(limite).all()
+    def listar(self, role: UserRole | None = None, offset: int = 0, limite: int = 10) -> list[User]:
+        query = self.db.query(User)
+        if role is not None:
+            query = query.filter(User.role == role)
+        return query.offset(offset).limit(limite).all()
+    def contar(self, role: UserRole | None = None) -> int:
+        query = self.db.query(User)
+        if role is not None:
+            query = query.filter(User.role == role)
+        return query.count()
 
-   
-    
+

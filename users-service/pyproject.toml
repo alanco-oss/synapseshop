@@ -12,6 +12,8 @@ dependencies = [
     "bcrypt>=5.0.0",
     "fastapi>=0.141.1",
     "psycopg2-binary>=2.9.13",
+    "pyjwt>=2.15.0",
+    "slowapi>=0.1.10",
     "sqlalchemy>=2.0.54",
     "uvicorn>=0.53.0",
 ]
