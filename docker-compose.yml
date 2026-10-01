@@ -19,6 +19,11 @@ services:
   api:
     build: .
     container_name: synapseshop-api
+    environment:
+      DB_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-synapse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synapseshop}
+      POSTGRES_DB: ${POSTGRES_DB:-synapseshop}
     ports:
       - "8000:8000"
     depends_on:
