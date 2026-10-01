@@ -137,4 +137,142 @@ Histórico de uso de IA generativa no desenvolvimento do SynapseShop.
 
 ---
 
+### Aula 8 — Cache-aside com Redis
+
+#### 1. Dependência, infraestrutura e configuração
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Implemente a spec `specs/specs_da_aula_8.md` (cache-aside com
+  Redis) starting pela configuração: adicione o cliente Redis, um serviço no
+  Compose com healthcheck e o backend de cache do Django apontando para ele."
+- **Decisões tomadas:**
+  - `redis==8.1.0` em `requirements.txt` — o `RedisCache` do Django 6 fala
+    Redis por `redis-py`, que ainda não é dependência padrão do DRF/Django.
+  - `CACHES['default']` com `BACKEND`
+    `django.core.cache.backends.redis.RedisCache`, `LOCATION` a partir de
+    `REDIS_URL` (db 1) e `KEY_PREFIX: synapseshop`, o que isola as chaves da
+    aplicação e facilita a inspeção manual no `redis-cli`.
+  - `socket_connect_timeout`/`socket_timeout` de 2s para que uma falha de rede
+    no Redis não vire uma requisição pendurada.
+  - Serviço `redis:7-alpine` no Compose com healthcheck e
+    `depends_on: condition: service_healthy` no serviço `api`.
+  - Backend escolhido pelo usuário entre as opções apresentadas; o cache do
+    catálogo foi explicitamente deixado fora do escopo, e nenhuma
+    `CELERY`/Kafka/RabbitMQ foi antecipada (Aulas 9–11).
+- **Correções aplicadas:** o Docker Desktop não estava inicializado durante a
+  validação; após reinício, `docker compose ps` mostrou `db` e `redis` saudáveis.
+  `REDIS_URL` não é necessária para o `runserver` local, que usa o padrão
+  `127.0.0.1:6379`.
+
+#### 2. App de pedidos: serializer, viewset e rotas
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Crie o app de pedidos seguindo a spec da Aula 8: serializer,
+  viewset com listagem e um endpoint de detalhes mais pesado, ambos com
+  cache-aside."
+- **Decisões tomadas:**
+  - `OrderSerializer` com campos explícitos (`id`, `user_id`, `status`, `total`,
+    `created_at`) — `created_at` somente leitura, para a spec não exigir um
+    campo de data no corpo do `POST`.
+  - `validate_total` rejeita total negativo (`400`), alinhando o app ao
+    tratamento de regras de negócio já usado no catálogo.
+  - `list()` e a ação `detalhes` (`@action(detail=True)`) são os dois pontos
+    cacheados; as demais operações do `ModelViewSet` seguem delegando ao ORM.
+  - `products/urls.py` passou a incluir `orders.urls` sob `/api/v1/`, gerando
+    `/api/v1/pedidos/` e `/api/v1/pedidos/{id}/detalhes/`.
+
+#### 3. Camada de cache, métricas e invalidação
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Implemente a camada de cache: chaves `pedidos:list` e
+  `pedido:{id}` com TTL, contadores de hit/miss no Redis, invalidação por evento
+  de domínio e degradação graciosa quando o cache está fora."
+- **Decisões tomadas:**
+  - Toda a nomenclatura e TTL vivem em `orders/cache.py`, para que nenhum
+    viewset monte chave na mão.
+  - Métricas como contadores Redis (`cache:metricas:{endpoint}:{hits|misses}`)
+    sem TTL, expostas em `GET /api/v1/pedidos/metricas-cache/` com
+    `hit_rate = hits/lookups`, exatamente como a spec sugere.
+  - Invalidação por evento: `PedidoCriado` limpa a lista;
+    `PedidoAtualizado` e `PedidoRemovido` limpam `pedido:{id}` **e** a lista.
+  - Toda operação de cache é envolvida por um helper que converte
+    `RedisError` em log `cache=indisponivel` e devolve `None`, deixando o
+    endpoint cair no banco — cache nunca derruba a API.
+  - Um `404` de detalhe conta como *miss* e não é cacheado.
+- **Correções aplicadas:** os eventos de domínio estavam fixos no log
+  (`evento=PedidoCriado|PedidoRemovido` na criação e `PedidoAtualizado` na
+  remoção, que é enganoso); `invalidar_lista`/`invalidar_pedido` passaram a
+  receber o nome do evento, e `perform_destroy` registra `PedidoRemovido`.
+  Além disso, o log dizia `cache=preenchido` mesmo quando a escrita falhava
+  (o helper engolia o `RedisError` e devolvia `None`, indistinguível de sucesso);
+  a gravação passou por um `_preencher` que só confirma o preenchimento quando o
+  `cache.set` realmente retorna.
+- **Impacto:** cache-aside ativo nos dois endpoints, com 6 chaves vivas no Redis
+  (`pedidos:list`, `pedido:{id}` e os 4 contadores) e invalidação verificada.
+
+#### 4. Validação (IA-safe)
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Valide o comportamento na API em execução: miss, preenchimento,
+  hit, TTL, invalidação, 404, 400 e o que acontece com o Redis parado."
+- **Validação no venv:** `manage.py check` sem issues e `migrate` sem
+  pendências. `miss` seguido de `hit` na lista e no detalhe; TTL observado de
+  51s (lista) e 291s (detalhe) contra os 60/300 configurados; `PATCH` removendo
+  as duas chaves (`EXISTS` = 0); detalhe inexistente em `404` sem cache; total
+  negativo em `400`; com o contêiner do Redis parado, lista, detalhes e métricas
+  seguiram em `200`. Logs confirmam `cache=miss`, `cache=preenchido`,
+  `cache=hit`, `cache=indisponivel` e os eventos `PedidoCriado`,
+  `PedidoAtualizado` e `PedidoRemovido`.
+- **Correções aplicadas ao subir o ambiente:** três problemas impediam validar a
+  Aula 8 dentro do contêiner, todos anteriores a ela — `requirements.txt` fixava
+  `alembic==1.20.1`, versão inexistente no PyPI (a última é 1.20.0), o que
+  quebrava `docker compose build api` antes mesmo de instalar o Redis;
+  `DATABASES` no `settings.py` tinha `localhost` fixo e o serviço `api` não
+  recebia `DB_HOST`, então o gunicorn não alcançava o PostgreSQL (o `settings.py`
+  passou a ler `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD`/`DB_HOST`/
+  `DB_PORT` do ambiente, mantendo `localhost` como padrão para o runserver local,
+  e o Compose passou a injetar as variáveis); e o `.dockerignore` não excluía
+  `.venv`, então os 57 MB do ambiente virtual do Windows iam parar na imagem.
+- **Validação no contêiner** (Django 6.0.7 e redis-py 8.1.0, os pins do
+  `requirements.txt`): `docker compose up -d --build api` deixa os três serviços
+  saudáveis; `miss` → `preenchido` → `hit` na lista e no detalhe; TTL de 58s e
+  299s; criação invalida a lista, leitura repovoa o detalhe, `PATCH` e `DELETE`
+  invalidam as duas chaves; `404` para id inexistente; `/metricas-cache/`
+  respondendo; e com o `redis` parado os três endpoints seguem em `200`, com
+  apenas `cache=indisponivel` nos logs e o cache voltando a funcionar sozinho
+  quando o contêiner sobe de novo.
+
+#### 5. Medições e documentação
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Crie um script que compare o desempenho antes e depois do cache
+  (latência média, p95 e RPS) e registre os resultados no README."
+- **Decisões tomadas:**
+  - `scripts/medir_cache.py` usa apenas a biblioteca padrão: mede quatro fases
+    do mesmo recurso — `sem_cache` (ORM + serializer, o caminho de dados
+    anterior), `cache_miss` (chave apagada antes de cada requisição), `cache_hit`
+    na **mesma** concorrência do *miss* e `cache_hit_carga` sob 10 threads.
+  - O caminho frio roda com concorrência 1 de propósito: em paralelo uma thread
+    pode aquecer a chave antes da consulta da outra e a medição seria
+    contaminada.
+  - As requisições passam pelo WSGI do Django em processo (`APIClient`), sem
+    socket, para que a diferença medida seja o efeito do cache e não o da rede.
+- **Correções aplicadas:** a primeira versão apagava `cache.make_key(chave)`
+    numa chave já prefixada, o que gerava `synapseshop:1:synapseshop:1:...` e
+    não deletava a chave alguma — a fase "miss" media, na verdade, *hits*. O
+    `make_key` duplicado foi removido; a fase `sem_cache` inicialmente media um
+    Redis apontado para uma porta fechada, o que media timeouts em vez do
+    caminho de dados, e passou a medir o ORM + serializer diretamente.
+- **Resultados (500 pedidos, mesa local):** listagem 67.17 ms → 14.13 ms de
+  média (≈4.8×, 14.9 → 70.7 RPS e p95 de 117.52 ms → 19.44 ms); detalhe
+  22.35 ms → 9.57 ms (≈2.3×, 44.7 → 104.4 RPS). O detalhe por chave primária já
+  é barato (3.64 ms), então o ganho é menor e a análise disso está no README;
+  sob 10 threads a listagem chega a 122.4 RPS e o detalhe a 159.3 RPS.
+- **Impacto:** `README.md` reestruturado com um capítulo por aula, incluindo
+  chaves e TTL, regra de invalidação, degradação graciosa, métricas e as tabelas
+  de medição; `PROMPTS.md` e a coleção Postman (`pasta Pedidos`, com
+  `pedido_id`) atualizados.
+
+---
+
 *Este arquivo crescerá a cada aula conforme o uso de IA generativa no projeto.*

@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'catalog.apps.CatalogConfig',
+    'orders.apps.OrdersConfig',
 ]
 
 MIDDLEWARE = [
@@ -53,6 +54,51 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'products.urls'
+
+
+# Cache-aside com Redis (Aula 8)
+# https://docs.djangoproject.com/en/6.0/topics/cache/
+
+REDIS_URL = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/1')
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': REDIS_URL,
+        'KEY_PREFIX': 'synapseshop',
+        'OPTIONS': {
+            'socket_connect_timeout': 2,
+            'socket_timeout': 2,
+        },
+    }
+}
+
+
+# Logs estruturados do ciclo de cache (miss -> preenchimento -> hit)
+# https://docs.djangoproject.com/en/6.0/topics/logging/
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'estruturado': {
+            'format': '%(asctime)s %(levelname)s %(name)s %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'estruturado',
+        },
+    },
+    'loggers': {
+        'orders.cache': {
+            'handlers': ['console'],
+            'level': os.getenv('CACHE_LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+    },
+}
 
 TEMPLATES = [
     {

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "3a7d0c1e-b2f4-4e6a-9c1d-5f8e2a0b7c4d",
     "name": "SynapseShop API",
-    "description": "Coleção dos endpoints CRUD da API principal (Aula 4). Prefixo versionado /api/v1/. Recursos: Categorias (nome, descricao) e Itens (nome, descricao, preco, estoque, categoria).",
+    "description": "Coleção dos endpoints da API SynapseShop. Prefixo versionado /api/v1/. Recursos: Categorias (nome, descricao), Itens (nome, descricao, preco, estoque, categoria) e Pedidos (user_id, status, total, created_at). As requisições de cache ficam na pasta Pedidos: a lista e o detalhe usam cache-aside no Redis e retornam cache=miss na primeira chamada, cache=hit na segunda e registram as métricas em /pedidos/metricas-cache/.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -16,6 +16,10 @@
     },
     {
       "key": "item_id",
+      "value": "1"
+    },
+    {
+      "key": "pedido_id",
       "value": "1"
     }
   ],
@@ -236,6 +240,107 @@
               "path": ["api", "v1", "items", "{{item_id}}", ""]
             },
             "description": "Exclui um item do catálogo. Esperado 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pedidos",
+      "item": [
+        {
+          "name": "Listar pedidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pedidos/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "pedidos", ""]
+            },
+            "description": "Lista os pedidos com cache-aside. 1a chamada: cache=miss e preenche a chave pedidos:list (TTL 60s). 2a chamada: cache=hit. Os pedidos do mesmo cache sao os mesmos."
+          }
+        },
+        {
+          "name": "Criar pedido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"status\": \"pending\",\n  \"total\": \"149.90\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pedidos/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "pedidos", ""]
+            },
+            "description": "Cria um pedido. Esperado 201 Created. Invalida a chave da lista, entao a proxima listagem volta a ser miss."
+          }
+        },
+        {
+          "name": "Detalhes do pedido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pedidos/{{pedido_id}}/detalhes/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "pedidos", "{{pedido_id}}", "detalhes"]
+            },
+            "description": "Detalhe de um pedido, cacheado na chave pedido:{id} (TTL 300s). 1a chamada: cache=miss. 2a chamada: cache=hit. Pedido inexistente retorna 404 e nao e cacheado."
+          }
+        },
+        {
+          "name": "Atualizar pedido (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"paid\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pedidos/{{pedido_id}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "pedidos", "{{pedido_id}}", ""]
+            },
+            "description": "Atualiza parcialmente e invalida o detalhe e a lista. Use-o para verificar a invalidacao: depois dele, as duas leituras voltam a ser cache=miss."
+          }
+        },
+        {
+          "name": "Métricas do cache",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pedidos/metricas-cache/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "pedidos", "metricas-cache"]
+            },
+            "description": "Hits, misses e hit rate de lista e detalhes, lidos do Redis. Funciona mesmo com o Redis parado (zera os contadores e devolve 200)."
+          }
+        },
+        {
+          "name": "Excluir pedido",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pedidos/{{pedido_id}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "pedidos", "{{pedido_id}}", ""]
+            },
+            "description": "Exclui um pedido e invalida o detalhe e a lista. Esperado 204 No Content."
           }
         }
       ]

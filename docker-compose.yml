@@ -16,6 +16,18 @@ services:
     ports:
       - "5432:5432"
 
+  redis:
+    image: redis:7-alpine
+    container_name: synapseshop-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "6379:6379"
+
   api:
     build: .
     container_name: synapseshop-api
@@ -24,10 +36,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-synapse}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synapseshop}
       POSTGRES_DB: ${POSTGRES_DB:-synapseshop}
+      REDIS_URL: redis://redis:6379/1
     ports:
       - "8000:8000"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   inventory:
