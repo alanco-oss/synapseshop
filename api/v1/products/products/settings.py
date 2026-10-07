@@ -97,6 +97,11 @@ LOGGING = {
             'level': os.getenv('CACHE_LOG_LEVEL', 'INFO'),
             'propagate': False,
         },
+        'orders.mensageria': {
+            'handlers': ['console'],
+            'level': os.getenv('MESSAGING_LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
     },
 }
 

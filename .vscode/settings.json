@@ -1,5 +1,6 @@
 {
     "python.analysis.extraPaths": [
         "./users-service"
-    ]
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }

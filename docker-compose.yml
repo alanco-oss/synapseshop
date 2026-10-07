@@ -28,6 +28,35 @@ services:
     ports:
       - "6379:6379"
 
+  redpanda:
+    image: redpandadata/redpanda:v26.2.4
+    container_name: synapseshop-redpanda
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:9094
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:9094
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "9094:9094"
+      - "9644:9644"
+
   api:
     build: .
     container_name: synapseshop-api
@@ -37,6 +66,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synapseshop}
       POSTGRES_DB: ${POSTGRES_DB:-synapseshop}
       REDIS_URL: redis://redis:6379/1
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
     ports:
       - "8000:8000"
     depends_on:
@@ -44,6 +74,31 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      redpanda:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: ["sh", "-c", "python manage.py migrate && python manage.py consumir_pedido_criado"]
+    environment:
+      DB_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-synapse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synapseshop}
+      POSTGRES_DB: ${POSTGRES_DB:-synapseshop}
+      REDIS_URL: redis://redis:6379/1
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      MENSAGERIA_LOG_LEVEL: INFO
+      MENSAGERIA_FORCAR_FALHA: ${MENSAGERIA_FORCAR_FALHA:-0}
+    restart: on-failure
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      api:
+        condition: service_started
 
   inventory:
     build:

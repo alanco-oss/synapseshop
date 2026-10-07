@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from . import cache as cache_pedidos
+from .mensageria import contrato, metricas, produtor
 from .models import Order
 from .serializers import OrderSerializer
 
@@ -40,9 +41,14 @@ class OrderViewSet(viewsets.ModelViewSet):
     def metricas_cache(self, request):
         return Response(cache_pedidos.metricas())
 
+    @action(detail=False, methods=["get"], url_path="metricas-mensageria")
+    def metricas_mensageria(self, request):
+        return Response(metricas.resumo())
+
     def perform_create(self, serializer):
-        serializer.save()
+        pedido = serializer.save()
         cache_pedidos.invalidar_lista("PedidoCriado")
+        produtor.publicar_evento(contrato.construir_pedido_criado(pedido))
 
     def perform_update(self, serializer):
         serializer.save()
