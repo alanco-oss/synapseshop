@@ -1,4 +1,5 @@
-"""Contrato estrutural do evento ``PedidoCriado`` (Aula 9).
+"""Contratos estruturais dos eventos ``PedidoCriado`` (Aula 9) e
+``PagamentoSimulado`` (Aula 11).
 
 O evento transporta os campos minimos de negocio mais a chave de idempotencia
 (``idempotency_key``), derivada de uma chave de negocio (``pedido:{id}``) em
@@ -73,4 +74,56 @@ def validar(evento):
     for campo in PAYLOAD_OBRIGATORIO:
         if payload.get(campo) is None:
             raise ValueError(f"campo obrigatorio em falta: payload.{campo}")
+    return evento
+
+
+# --- PagamentoSimulado (Aula 11) -------------------------------------------
+
+TIPO_PAGAMENTO = "PagamentoSimulado"
+PAYLOAD_PAGAMENTO_OBRIGATORIO = ("pedido_id", "user_id", "total", "aprovado", "status")
+
+
+def chave_idempotencia_pagamento(pedido_id):
+    """Chave de negocio do evento de pagamento (dedupe por pedido)."""
+    return f"pagamento:{pedido_id}"
+
+
+def construir_pagamento_simulado(pedido, aprovado):
+    """Monta o evento ``PagamentoSimulado`` a partir de uma instancia de ``Order``.
+
+    Publicado quer a simulacao seja aprovada quer recusada, para que o
+    passo de notificacao cubra os dois desfechos do fluxo.
+    """
+    return {
+        "event_id": str(uuid.uuid4()),
+        "event_type": TIPO_PAGAMENTO,
+        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "idempotency_key": chave_idempotencia_pagamento(pedido.pk),
+        "payload": {
+            "pedido_id": pedido.pk,
+            "user_id": pedido.user_id,
+            "total": str(pedido.total),
+            "aprovado": bool(aprovado),
+            "status": pedido.status,
+        },
+    }
+
+
+def validar_pagamento(evento):
+    """Valida o contrato de ``PagamentoSimulado``; levanta ``ValueError``."""
+    if not isinstance(evento, dict):
+        raise ValueError("evento nao e um objeto JSON")
+    for campo in CAMPOS_OBRIGATORIOS:
+        if not evento.get(campo):
+            raise ValueError(f"campo obrigatorio em falta: {campo}")
+    if evento["event_type"] != TIPO_PAGAMENTO:
+        raise ValueError(f"event_type desconhecido: {evento['event_type']}")
+    payload = evento["payload"]
+    if not isinstance(payload, dict):
+        raise ValueError("payload nao e um objeto JSON")
+    for campo in PAYLOAD_PAGAMENTO_OBRIGATORIO:
+        if payload.get(campo) is None:
+            raise ValueError(f"campo obrigatorio em falta: payload.{campo}")
+    if not isinstance(payload["aprovado"], bool):
+        raise ValueError("payload.aprovado tem de ser booleano")
     return evento

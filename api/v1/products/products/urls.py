@@ -17,8 +17,12 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from . import health
+
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # Rota de healthcheck do mini-backend (Aula 11)
+    path('health', health.health, name='health'),
     path('api/v1/', include('catalog.urls')),
     path('api/v1/', include('orders.urls')),
 ]

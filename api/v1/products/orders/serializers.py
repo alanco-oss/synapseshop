@@ -15,3 +15,24 @@ class OrderSerializer(serializers.ModelSerializer):
                 "O total do pedido deve ser um valor não negativo."
             )
         return value
+
+
+class PagamentoSimuladoSerializer(serializers.Serializer):
+    """Payload do ``POST /api/v1/pedidos/{id}/pagar/`` (Aula 11)."""
+
+    aprovado = serializers.BooleanField(
+        default=True,
+        help_text="Resultado da simulacao: true aprova, false recusa.",
+    )
+
+    def validate(self, attrs):
+        permitidos = set(self.fields)
+        desconhecidos = set(self.initial_data) - permitidos
+        if desconhecidos:
+            raise serializers.ValidationError(
+                {
+                    campo: "Campo desconhecido no payload de pagamento."
+                    for campo in sorted(desconhecidos)
+                }
+            )
+        return attrs

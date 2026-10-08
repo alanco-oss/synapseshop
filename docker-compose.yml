@@ -69,6 +69,12 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
     depends_on:
       db:
         condition: service_healthy
@@ -89,6 +95,36 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       MENSAGERIA_LOG_LEVEL: INFO
       MENSAGERIA_FORCAR_FALHA: ${MENSAGERIA_FORCAR_FALHA:-0}
+    # nao serve HTTP: o HEALTHCHECK da imagem (porta 8000) nao se aplica
+    healthcheck:
+      disable: true
+    restart: on-failure
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  worker-notificacoes:
+    build: .
+    container_name: synapseshop-worker-notificacoes
+    command: ["sh", "-c", "python manage.py migrate && python manage.py consumir_pagamento"]
+    environment:
+      DB_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-synapse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synapseshop}
+      POSTGRES_DB: ${POSTGRES_DB:-synapseshop}
+      REDIS_URL: redis://redis:6379/1
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      MENSAGERIA_LOG_LEVEL: INFO
+      MENSAGERIA_FORCAR_FALHA: ${MENSAGERIA_FORCAR_FALHA:-0}
+    # nao serve HTTP: o HEALTHCHECK da imagem (porta 8000) nao se aplica
+    healthcheck:
+      disable: true
     restart: on-failure
     depends_on:
       db:

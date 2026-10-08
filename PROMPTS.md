@@ -275,4 +275,62 @@ Histórico de uso de IA generativa no desenvolvimento do SynapseShop.
 
 ---
 
+### Aula 11 — Desafio Mão na Massa: Núcleo do Mini-Backend
+
+#### 1. Endpoint de simulação de pagamento
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Implemente a ação `POST /api/v1/pedidos/{id}/pagar/` que simula o
+  pagamento de um pedido pendente: `aprovado=true` transiciona `pending → paid`,
+  invalida o cache e publica o evento `PagamentoSimulado`; `aprovado=false`
+  mantém `pending` mas publica o evento na mesma; respostas 200/402/409 e 400
+  para payload inválido."
+- **Decisões tomadas:**
+  - Ação `detail=True` no `OrderViewSet` (reutiliza o router existente) em vez
+    de um recurso `pagamentos` separado — o pagamento é um ato *sobre* o pedido.
+  - `PagamentoSimuladoSerializer` com `aprovado` (default `true`) e rejeição
+    explícita de campos desconhecidos (400) conforme o checklist IA-safe.
+  - **402** para recusa (DRF define `HTTP_402_PAYMENT_REQUIRED`).
+- **Correções aplicadas:** a primeira versão publicava o evento no tópico
+  **padrão** `pedidos.criado` (o default do produtor), enviando `PagamentoSimulado`
+  para o worker errado → 2 mensagens em DLQ; corrigido passando
+  `topico=topicos.TOPICO_PAGAMENTO` explicitamente. Também corrigida a constante
+  (`HTTP_402_PAYMENT_REQUESTED` não existe no DRF → `HTTP_402_PAYMENT_REQUIRED`).
+- **Impacto:** endpoint com dois desfechos demonstrados (200/402) e validação de
+  payload explícita.
+
+#### 2. Worker de notificação e tópicos
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Crie o management command `consumir_pagamento` (mesmo padrão do
+  `consumir_pedido_criado`: commit manual, idempotência via Redis com namespace
+  próprio, retry/backoff e DLQ `pedidos.pagamento.dlq`) que consome
+  `PagamentoSimulado`, garante o estado do pedido, invalida o cache e emite a
+  notificação simulada por log."
+- **Decisões tomadas:**
+  - Novo comando + serviço `worker-notificacoes` no compose (em vez de estender
+    `consumir_pedido_criado`), preservando a semântica e o `--scale worker=3`
+    da Aula 10.
+  - Marcador Redis `…:feito:` (`idempotencia.concluir/ja_concluido`) para
+    distinguir duplicado de falha entre a reserva e a notificação.
+  - Contador `notificacoes` (com `aprovado`/`recusado`) em `metricas.py`,
+    exposto no endpoint de métricas.
+- **Impacto:** fluxo criar → pagar → notificar operante, com DLQ validada
+  (`MENSAGERIA_FORCAR_FALHA=1`).
+
+#### 3. Observabilidade e orquestração
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Adicione a rota `GET /health` na API Django (db obrigatório →
+  503; redis/kafka → `degraded` mas 200, coerente com a degradação graciosa das
+  Aulas 8/9) e ajuste Dockerfile e docker-compose: healthcheck do `api` sobre
+  `/health` e `healthcheck: disable` nos workers (não servem HTTP)."
+- **Decisões tomadas:** teste de alcancabilidade do Kafka por TCP com timeout
+  curto (`HEALTH_TIMEOUT_KAFKA`) para não bloquear o healthcheck.
+- **Impacto:** `docker compose ps` mostra todos os serviços `healthy` (os
+  workers deixaram de ficar `unhealthy`); `GET /health` devolve o estado das
+  três dependências.
+
+---
+
 *Este arquivo crescerá a cada aula conforme o uso de IA generativa no projeto.*

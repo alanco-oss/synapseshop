@@ -1,4 +1,5 @@
-"""Definicao e garantia dos topicos Kafka do fluxo ``PedidoCriado`` (Aula 10).
+"""Definicao e garantia dos topicos Kafka dos fluxos ``PedidoCriado`` (Aula 10)
+e ``PagamentoSimulado`` (Aula 11).
 
 Nomes, numero de particoes e retencao sao centralizados aqui (fonte unica,
 usada pelo produtor, pelo worker e pelos scripts). `garantir` cria/ajusta os
@@ -8,7 +9,9 @@ topicos no arranque do worker:
   com varios workers no mesmo grupo), retencao curta (Kafka como fila
   operacional);
 - ``pedidos.criado.dlq``: 1 particao e retencao longa (mensagens esgotadas
-  destinam-se a inspecao/reprocessamento manual).
+  destinam-se a inspecao/reprocessamento manual);
+- ``pedidos.pagamento`` / ``pedidos.pagamento.dlq``: mesmo esquema para o
+  evento ``PagamentoSimulado`` e a notificacao (Aula 11).
 
 Se um topico ja existir, `garantir` aumenta o numero de particoes quando
 faltam (nunca reduz, Kafka nao permite) e apenas informa sobre a retencao.
@@ -23,6 +26,9 @@ logger = logging.getLogger("orders.mensageria")
 
 TOPICO_PEDIDO_CRIADO = "pedidos.criado"
 TOPICO_DLQ = "pedidos.criado.dlq"
+# Aula 11: fluxo de pagamento simulado e a sua notificacao
+TOPICO_PAGAMENTO = "pedidos.pagamento"
+TOPICO_PAGAMENTO_DLQ = "pedidos.pagamento.dlq"
 
 BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094")
 PARTICOES = int(os.getenv("KAFKA_PARTICOES", "3"))
@@ -36,6 +42,14 @@ ESPECIFICACOES = {
         "retencao_ms": RETENCAO_HORAS * 3600 * 1000,
     },
     TOPICO_DLQ: {
+        "particoes": 1,
+        "retencao_ms": RETENCAO_DLQ_HORAS * 3600 * 1000,
+    },
+    TOPICO_PAGAMENTO: {
+        "particoes": PARTICOES,
+        "retencao_ms": RETENCAO_HORAS * 3600 * 1000,
+    },
+    TOPICO_PAGAMENTO_DLQ: {
         "particoes": 1,
         "retencao_ms": RETENCAO_DLQ_HORAS * 3600 * 1000,
     },

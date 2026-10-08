@@ -8,6 +8,10 @@ trade-offs de dedupe (Redis SET NX EX) vs latencia vs throughput.
 Chaves fisicas (com prefixo do Django): ``synapseshop:1:mensageria:metricas:*``.
 O Redis indisponivel degrada para log (como o cache na Aula 8), nunca quebra a
 publicacao nem o consumo.
+
+Aula 11: acrescenta o contador ``notificacoes`` (e o desmembramento
+``aprovado``/``recusado``) das notificacoes simuladas produzidas pelo worker
+``consumir_pagamento``.
 """
 import logging
 
@@ -22,6 +26,7 @@ CONSUMO = "consumos"
 DUPLICADOS = "duplicados"
 DLQ = "dlq"
 FALHAS_PUBLICACAO = "publicacoes_falhas"
+NOTIFICACOES = "notificacoes"
 
 
 def _incr(chave, delta=1):
@@ -65,6 +70,13 @@ def registrar_consumo(duracao_ms, latencia_ms, duplicado=False, dlq=False):
         _incr(f"{PREFIXO}{DLQ}")
 
 
+def registrar_notificacao(resultado):
+    """Conta notificacoes simuladas enviadas pelo worker (Aula 11)."""
+    _incr(f"{PREFIXO}{NOTIFICACOES}")
+    if resultado:
+        _incr(f"{PREFIXO}notificacoes:{resultado}")
+
+
 def resumo():
     """Media de duracao/latencia e throughput acumulados por etapa do fluxo."""
     def _ler(nome, padrao=0):
@@ -104,5 +116,10 @@ def resumo():
             if consumos else 0.0,
             "duracao_total_ms": consumos_ms / 1000,
             "latencia_total_ms": latencia_ms / 1000,
+        },
+        "notificacoes": {
+            "total": _ler("notificacoes"),
+            "aprovados": _ler("notificacoes:aprovado"),
+            "recusados": _ler("notificacoes:recusado"),
         },
     }
