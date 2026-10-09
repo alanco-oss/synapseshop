@@ -1,0 +1,1210 @@
+openapi: 3.0.3
+info:
+  title: SynapseShop API
+  version: 1.0.0
+  description: |
+    Contrato dos endpoints do mini-backend SynapseShop (Aula 13).
+
+    ## Convenções
+    - **Versionamento de rota:** todo recurso vive sob o prefixo `/api/v1/`.
+    - **Nomes de recurso:** substantivos no plural, minúsculos
+      (`/categories`, `/items`, `/pedidos`).
+    - **Paginação (opcional):** `?page=<n>&limit=<n>`. Sem esses parâmetros a
+      coleção inteira é devolvida como uma lista simples. Com eles, a resposta
+      passa a ser um envelope com `count`, `next`, `previous`, `nextCursor` e
+      `results` (máximo de 100 itens por página).
+    - **Filtros:** por igualdade, em campos declarados (ex.: `?status=pending`
+      nos pedidos, `?categoria=<id>` nos itens).
+    - **Ordenação:** `?sort=campo:asc|desc` (ex.: `?sort=createdAt:desc`).
+    - **Erros:** envelope inspirado na RFC 7807 (`problem+json`), com os erros
+      de validação replicados por campo.
+
+    ## Cabeçalhos obrigatórios e opcionais
+    - `Authorization: Bearer <token>` — reservado para autenticação; hoje a API
+      aceita pedidos anónimos.
+    - `Idempotency-Key: <uuid>` — recomendado em `POST` para evitar criação
+      duplicada em retentativas.
+    - `X-Trace-Id: <string>` — correlação de pedidos; se ausente, a API gera um
+      valor e devolve-o na resposta.
+  contact:
+    name: SynapseTech
+    url: https://github.com/anomalyco/opencode
+  license:
+    name: MIT
+servers:
+  - url: http://127.0.0.1:8000
+    description: Ambiente local (docker compose / runserver)
+  - url: https://api.synapseshop.local
+    description: Ambiente de homologação
+security:
+  - bearerAuth: []
+  - {}
+tags:
+  - name: Health
+    description: Disponibilidade da API e das dependências.
+  - name: Catálogo
+    description: Categorias e itens do catálogo.
+  - name: Pedidos
+    description: Pedidos, pagamento simulado, cache e métricas de mensageria.
+  - name: Documentação
+    description: Artefactos de documentação (Swagger UI, ReDoc e schema).
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: obterHealth
+      summary: Estado da API e dependências
+      description: |
+        Verifica `db` (obrigatório, 503 se indisponível), `redis` e `kafka`
+        (opcionais: indisponibilidade marca `degraded` mas mantém `200`).
+      security: []
+      responses:
+        '200':
+          description: API operacional (eventualmente degradada).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                status: ok
+                app: synapseshop-api
+                db: ok
+                redis: ok
+                kafka: ok
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/categories/:
+    parameters:
+      - $ref: '#/components/parameters/TraceId'
+    get:
+      tags: [Catálogo]
+      operationId: listarCategorias
+      summary: Lista categorias
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Lista (ou página) de categorias.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaCategorias'
+              example:
+                - id: 1
+                  nome: Papelaria
+                  descricao: Material de papelaria
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Catálogo]
+      operationId: criarCategoria
+      summary: Cria uma categoria
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoriaEntrada'
+            example:
+              nome: Papelaria
+              descricao: Material de papelaria
+      responses:
+        '201':
+          description: Categoria criada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Categoria'
+              example:
+                id: 1
+                nome: Papelaria
+                descricao: Material de papelaria
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/categories/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/CategoriaId'
+      - $ref: '#/components/parameters/TraceId'
+    get:
+      tags: [Catálogo]
+      operationId: obterCategoria
+      summary: Recupera uma categoria
+      responses:
+        '200':
+          description: Categoria encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Categoria'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Catálogo]
+      operationId: substituirCategoria
+      summary: Substitui uma categoria (PUT)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoriaEntrada'
+            example:
+              nome: Papelaria Premium
+              descricao: Materiais escolares selecionados
+      responses:
+        '200':
+          description: Categoria substituída.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Categoria'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Catálogo]
+      operationId: atualizarCategoria
+      summary: Atualiza parcialmente uma categoria (PATCH)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoriaAtualizacao'
+            example:
+              descricao: Atualização parcial
+      responses:
+        '200':
+          description: Categoria atualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Categoria'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Catálogo]
+      operationId: removerCategoria
+      summary: Remove uma categoria
+      responses:
+        '204':
+          description: Categoria removida (sem corpo).
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/items/:
+    parameters:
+      - $ref: '#/components/parameters/TraceId'
+    get:
+      tags: [Catálogo]
+      operationId: listarItens
+      summary: Lista itens do catálogo
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/CategoriaFiltro'
+      responses:
+        '200':
+          description: Lista (ou página) de itens.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaItens'
+              example:
+                - id: 1
+                  nome: Caderno pautado
+                  descricao: 96 folhas, capa dura
+                  preco: '9.90'
+                  estoque: 50
+                  categoria: 1
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Catálogo]
+      operationId: criarItem
+      summary: Cria um item
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemEntrada'
+            example:
+              nome: Caderno pautado
+              descricao: 96 folhas, capa dura
+              preco: '9.90'
+              estoque: 50
+              categoria: 1
+      responses:
+        '201':
+          description: Item criado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/items/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+      - $ref: '#/components/parameters/TraceId'
+    get:
+      tags: [Catálogo]
+      operationId: obterItem
+      summary: Recupera um item
+      responses:
+        '200':
+          description: Item encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Catálogo]
+      operationId: substituirItem
+      summary: Substitui um item (PUT)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemEntrada'
+            example:
+              nome: Caderno pautado
+              descricao: 200 folhas, capa dura
+              preco: '12.90'
+              estoque: 45
+              categoria: 1
+      responses:
+        '200':
+          description: Item substituído.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Catálogo]
+      operationId: atualizarItem
+      summary: Atualiza parcialmente um item (PATCH)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemAtualizacao'
+            example:
+              estoque: 40
+      responses:
+        '200':
+          description: Item atualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Catálogo]
+      operationId: removerItem
+      summary: Remove um item
+      responses:
+        '204':
+          description: Item removido (sem corpo).
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/pedidos/:
+    parameters:
+      - $ref: '#/components/parameters/TraceId'
+    get:
+      tags: [Pedidos]
+      operationId: listarPedidos
+      summary: Lista pedidos
+      description: |
+        Sem parâmetros de consulta, a listagem usa cache-aside (chave
+        `pedidos:list`, TTL 60s). Com `status`, `sort`, `page` ou `limit`, a
+        consulta vai diretamente à base de dados e não é cacheada.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/StatusFiltro'
+        - $ref: '#/components/parameters/UserIdFiltro'
+      responses:
+        '200':
+          description: Lista (ou página) de pedidos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaPedidos'
+              examples:
+                lista:
+                  summary: Sem paginação
+                  value:
+                    - id: 1
+                      user_id: 7
+                      status: pending
+                      total: '129.90'
+                      created_at: '2026-01-15T12:00:00Z'
+                pagina:
+                  summary: Com `?page=1&limit=1`
+                  value:
+                    count: 1
+                    next: null
+                    previous: null
+                    nextCursor: null
+                    results:
+                      - id: 1
+                        user_id: 7
+                        status: pending
+                        total: '129.90'
+                        created_at: '2026-01-15T12:00:00Z'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Pedidos]
+      operationId: criarPedido
+      summary: Cria um pedido
+      description: |
+        Cria o pedido, invalida a chave da lista e publica o evento
+        `PedidoCriado` no Kafka.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PedidoEntrada'
+            example:
+              user_id: 7
+              status: pending
+              total: '129.90'
+      responses:
+        '201':
+          description: Pedido criado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pedido'
+              example:
+                id: 1
+                user_id: 7
+                status: pending
+                total: '129.90'
+                created_at: '2026-01-15T12:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/pedidos/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/TraceId'
+    get:
+      tags: [Pedidos]
+      operationId: obterPedido
+      summary: Recupera um pedido
+      responses:
+        '200':
+          description: Pedido encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pedido'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Pedidos]
+      operationId: substituirPedido
+      summary: Substitui um pedido (PUT)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PedidoEntrada'
+      responses:
+        '200':
+          description: Pedido substituído.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pedido'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Pedidos]
+      operationId: atualizarPedido
+      summary: Atualiza parcialmente um pedido (PATCH)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PedidoAtualizacao'
+            example:
+              status: paid
+      responses:
+        '200':
+          description: Pedido atualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pedido'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Pedidos]
+      operationId: removerPedido
+      summary: Remove um pedido
+      responses:
+        '204':
+          description: Pedido removido (sem corpo).
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/pedidos/{id}/detalhes/:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/TraceId'
+    get:
+      tags: [Pedidos]
+      operationId: detalhesPedido
+      summary: Detalhes cacheados de um pedido
+      description: |
+        Leitura cache-aside na chave `pedido:{id}` (TTL 300s). Um `404` conta
+        como *miss* e não é cacheado.
+      responses:
+        '200':
+          description: Detalhe do pedido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pedido'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/pedidos/{id}/pagar/:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/TraceId'
+    post:
+      tags: [Pedidos]
+      operationId: pagarPedido
+      summary: Simula o pagamento de um pedido
+      description: |
+        `aprovado=true` transiciona `pending → paid` e invalida o cache;
+        `aprovado=false` recusa (402) mas mantém `pending`. Em qualquer dos
+        casos o evento `PagamentoSimulado` é publicado.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagamentoSimulado'
+            example:
+              aprovado: true
+      responses:
+        '200':
+          description: Pagamento aprovado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadoPagamento'
+              example:
+                pedido_id: 1
+                status: paid
+                aprovado: true
+                evento_publicado: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/pedidos/metricas-cache/:
+    get:
+      tags: [Pedidos]
+      operationId: metricasCache
+      summary: Métricas de eficácia do cache
+      description: Hits, misses e hit rate por endpoint, lidos do Redis.
+      parameters:
+        - $ref: '#/components/parameters/TraceId'
+      responses:
+        '200':
+          description: Métricas do cache.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricasCache'
+              example:
+                lista:
+                  hits: 5
+                  misses: 2
+                  lookups: 7
+                  hit_rate: 0.7143
+                detalhes:
+                  hits: 3
+                  misses: 1
+                  lookups: 4
+                  hit_rate: 0.75
+  /api/v1/pedidos/metricas-mensageria/:
+    get:
+      tags: [Pedidos]
+      operationId: metricasMensageria
+      summary: Métricas de latência e throughput da mensageria
+      parameters:
+        - $ref: '#/components/parameters/TraceId'
+      responses:
+        '200':
+          description: Resumo acumulado do produtor, consumidor e notificações.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricasMensageria'
+              example:
+                produtor:
+                  publicacoes: 10
+                  publicacoes_falhas: 0
+                  publicacoes_total: 10
+                  tempo_medio_ms: 2.1
+                  tempo_total_ms: 21.0
+                consumidor:
+                  consumos: 10
+                  duplicados: 1
+                  dlq: 0
+                  falha_percentual: 0.0
+                  duracao_media_ms: 8.4
+                  latencia_media_ms: 152.7
+                  duracao_total_ms: 84.0
+                  latencia_total_ms: 1527.0
+                notificacoes:
+                  total: 4
+                  aprovados: 3
+                  recusados: 1
+  /api/v1/schema/:
+    get:
+      tags: [Documentação]
+      operationId: obterSchemaOpenapi
+      summary: Contrato OpenAPI (YAML)
+      security: []
+      responses:
+        '200':
+          description: Documento OpenAPI servido pela aplicação.
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /api/v1/docs/:
+    get:
+      tags: [Documentação]
+      operationId: obterSwaggerUi
+      summary: Swagger UI
+      security: []
+      responses:
+        '200':
+          description: Interface interativa Swagger UI.
+          content:
+            text/html:
+              schema:
+                type: string
+  /api/v1/redoc/:
+    get:
+      tags: [Documentação]
+      operationId: obterRedoc
+      summary: ReDoc
+      security: []
+      responses:
+        '200':
+          description: Interface de documentação ReDoc.
+          content:
+            text/html:
+              schema:
+                type: string
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Token JWT reservado para autenticação. Atualmente a API aceita pedidos
+        anónimos; o esquema é documentado para consumo por terceiros.
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Número da página (a partir de 1). Ativa a paginação.
+      schema:
+        type: integer
+        minimum: 1
+        example: 1
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Itens por página (1 a 100). Ativa a paginação.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+        example: 20
+    Sort:
+      name: sort
+      in: query
+      required: false
+      description: 'Ordenação no formato `campo:asc|desc`.'
+      schema:
+        type: string
+        example: createdAt:desc
+    StatusFiltro:
+      name: status
+      in: query
+      required: false
+      description: Filtra pedidos por estado.
+      schema:
+        type: string
+        enum: [pending, paid, shipped, cancelled]
+        example: pending
+    UserIdFiltro:
+      name: user_id
+      in: query
+      required: false
+      description: Filtra pedidos por utilizador.
+      schema:
+        type: integer
+        example: 7
+    CategoriaFiltro:
+      name: categoria
+      in: query
+      required: false
+      description: Filtra itens pela categoria (id).
+      schema:
+        type: integer
+        example: 1
+    CategoriaId:
+      name: id
+      in: path
+      required: true
+      description: Identificador da categoria.
+      schema:
+        type: integer
+        example: 1
+    ItemId:
+      name: id
+      in: path
+      required: true
+      description: Identificador do item.
+      schema:
+        type: integer
+        example: 1
+    PedidoId:
+      name: id
+      in: path
+      required: true
+      description: Identificador do pedido.
+      schema:
+        type: integer
+        example: 1
+    TraceId:
+      name: X-Trace-Id
+      in: header
+      required: false
+      description: Identificador de correlação; devolvido na resposta.
+      schema:
+        type: string
+        example: 4f2a9c1d8b7e4a6f
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Chave de idempotência recomendada em operações de escrita.
+      schema:
+        type: string
+        format: uuid
+        example: 3a7d0c1e-b2f4-4e6a-9c1d-5f8e2a0b7c4d
+  responses:
+    BadRequest:
+      description: Payload inválido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: about:blank
+            title: Requisição inválida
+            status: 400
+            detail: Requisição inválida
+            instance: /api/v1/pedidos/
+            errors:
+              total:
+                - O total do pedido deve ser um valor não negativo.
+            total:
+              - O total do pedido deve ser um valor não negativo.
+    NotFound:
+      description: Recurso inexistente.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: about:blank
+            title: Recurso não encontrado
+            status: 404
+            detail: Not found.
+            instance: /api/v1/pedidos/999/
+    Conflict:
+      description: Estado do recurso incompatível com a operação.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: about:blank
+            title: Conflito de estado
+            status: 409
+            detail: O pedido 1 nao esta pendente (status=paid).
+            instance: /api/v1/pedidos/1/pagar/
+    PaymentRequired:
+      description: Pagamento recusado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResultadoPagamento'
+          example:
+            pedido_id: 1
+            status: pending
+            aprovado: false
+            evento_publicado: true
+    ServiceUnavailable:
+      description: Dependência obrigatória (base de dados) indisponível.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Health'
+          example:
+            status: error
+            app: synapseshop-api
+            db: indisponivel
+    InternalServerError:
+      description: Erro inesperado no servidor.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: about:blank
+            title: Erro interno do servidor
+            status: 500
+            detail: Erro interno do servidor
+            instance: /api/v1/pedidos/
+  schemas:
+    Health:
+      type: object
+      required: [status, app]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, error]
+          example: ok
+        app:
+          type: string
+          example: synapseshop-api
+        db:
+          type: string
+          example: ok
+        redis:
+          type: string
+          example: ok
+        kafka:
+          type: string
+          example: ok
+    ProblemDetails:
+      type: object
+      description: Envelope de erro inspirado na RFC 7807.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          example: about:blank
+        title:
+          type: string
+          example: Requisição inválida
+        status:
+          type: integer
+          example: 400
+        detail:
+          type: string
+          example: Requisição inválida
+        instance:
+          type: string
+          example: /api/v1/pedidos/
+        errors:
+          type: object
+          description: Erros por campo (formato nativo do DRF).
+          additionalProperties:
+            type: array
+            items:
+              type: string
+    Categoria:
+      type: object
+      required: [id, nome]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          example: 1
+        nome:
+          type: string
+          maxLength: 100
+          example: Papelaria
+        descricao:
+          type: string
+          example: Material de papelaria
+    CategoriaEntrada:
+      type: object
+      required: [nome]
+      properties:
+        nome:
+          type: string
+          maxLength: 100
+          example: Papelaria
+        descricao:
+          type: string
+          example: Material de papelaria
+    CategoriaAtualizacao:
+      type: object
+      description: Campos opcionais para atualização parcial (PATCH).
+      properties:
+        nome:
+          type: string
+          maxLength: 100
+          example: Papelaria Premium
+        descricao:
+          type: string
+          example: Atualização parcial
+    Item:
+      type: object
+      required: [id, nome, preco]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          example: 1
+        nome:
+          type: string
+          maxLength: 200
+          example: Caderno pautado
+        descricao:
+          type: string
+          example: 96 folhas, capa dura
+        preco:
+          type: string
+          pattern: '^\d+(\.\d{2})?$'
+          example: '9.90'
+        estoque:
+          type: integer
+          minimum: 0
+          example: 50
+        categoria:
+          type: integer
+          nullable: true
+          example: 1
+    ItemEntrada:
+      type: object
+      required: [nome, preco]
+      properties:
+        nome:
+          type: string
+          maxLength: 200
+          example: Caderno pautado
+        descricao:
+          type: string
+          example: 96 folhas, capa dura
+        preco:
+          type: string
+          pattern: '^\d+(\.\d{2})?$'
+          example: '9.90'
+        estoque:
+          type: integer
+          minimum: 0
+          default: 0
+          example: 50
+        categoria:
+          type: integer
+          nullable: true
+          example: 1
+    ItemAtualizacao:
+      type: object
+      description: Campos opcionais para atualização parcial (PATCH).
+      properties:
+        nome:
+          type: string
+          maxLength: 200
+          example: Caderno pautado
+        descricao:
+          type: string
+          example: 200 folhas, capa dura
+        preco:
+          type: string
+          pattern: '^\d+(\.\d{2})?$'
+          example: '12.90'
+        estoque:
+          type: integer
+          minimum: 0
+          example: 40
+        categoria:
+          type: integer
+          nullable: true
+          example: 1
+    Pedido:
+      type: object
+      required: [id, user_id, status, total]
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          example: 1
+        user_id:
+          type: integer
+          example: 7
+        status:
+          type: string
+          enum: [pending, paid, shipped, cancelled]
+          example: pending
+        total:
+          type: string
+          pattern: '^\d+(\.\d{2})?$'
+          example: '129.90'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2026-01-15T12:00:00Z'
+    PedidoEntrada:
+      type: object
+      required: [user_id, total]
+      properties:
+        user_id:
+          type: integer
+          example: 7
+        status:
+          type: string
+          enum: [pending, paid, shipped, cancelled]
+          default: pending
+          example: pending
+        total:
+          type: string
+          pattern: '^\d+(\.\d{2})?$'
+          example: '129.90'
+    PedidoAtualizacao:
+      type: object
+      description: Campos opcionais para atualização parcial (PATCH).
+      properties:
+        user_id:
+          type: integer
+          example: 7
+        status:
+          type: string
+          enum: [pending, paid, shipped, cancelled]
+          example: paid
+        total:
+          type: string
+          pattern: '^\d+(\.\d{2})?$'
+          example: '129.90'
+    PagamentoSimulado:
+      type: object
+      properties:
+        aprovado:
+          type: boolean
+          default: true
+          description: Resultado da simulação (true aprova, false recusa).
+          example: true
+    ResultadoPagamento:
+      type: object
+      required: [pedido_id, status, aprovado, evento_publicado]
+      properties:
+        pedido_id:
+          type: integer
+          example: 1
+        status:
+          type: string
+          enum: [pending, paid, shipped, cancelled]
+          example: paid
+        aprovado:
+          type: boolean
+          example: true
+        evento_publicado:
+          type: boolean
+          example: true
+    MetricasCache:
+      type: object
+      properties:
+        lista:
+          $ref: '#/components/schemas/MetricaEndpoint'
+        detalhes:
+          $ref: '#/components/schemas/MetricaEndpoint'
+    MetricaEndpoint:
+      type: object
+      required: [hits, misses, lookups, hit_rate]
+      properties:
+        hits:
+          type: integer
+          example: 5
+        misses:
+          type: integer
+          example: 2
+        lookups:
+          type: integer
+          example: 7
+        hit_rate:
+          type: number
+          format: float
+          example: 0.7143
+    MetricasMensageria:
+      type: object
+      properties:
+        produtor:
+          type: object
+          properties:
+            publicacoes:
+              type: integer
+              example: 10
+            publicacoes_falhas:
+              type: integer
+              example: 0
+            publicacoes_total:
+              type: integer
+              example: 10
+            tempo_medio_ms:
+              type: number
+              example: 2.1
+            tempo_total_ms:
+              type: number
+              example: 21.0
+        consumidor:
+          type: object
+          properties:
+            consumos:
+              type: integer
+              example: 10
+            duplicados:
+              type: integer
+              example: 1
+            dlq:
+              type: integer
+              example: 0
+            falha_percentual:
+              type: number
+              example: 0.0
+            duracao_media_ms:
+              type: number
+              example: 8.4
+            latencia_media_ms:
+              type: number
+              example: 152.7
+            duracao_total_ms:
+              type: number
+              example: 84.0
+            latencia_total_ms:
+              type: number
+              example: 1527.0
+        notificacoes:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 4
+            aprovados:
+              type: integer
+              example: 3
+            recusados:
+              type: integer
+              example: 1
+    Pagina:
+      type: object
+      required: [count, results]
+      properties:
+        count:
+          type: integer
+          example: 1
+        next:
+          type: string
+          nullable: true
+          example: null
+        previous:
+          type: string
+          nullable: true
+          example: null
+        nextCursor:
+          type: integer
+          nullable: true
+          example: null
+    PaginaCategorias:
+      allOf:
+        - $ref: '#/components/schemas/Pagina'
+        - type: object
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/Categoria'
+    PaginaItens:
+      allOf:
+        - $ref: '#/components/schemas/Pagina'
+        - type: object
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/Item'
+    PaginaPedidos:
+      allOf:
+        - $ref: '#/components/schemas/Pagina'
+        - type: object
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/Pedido'
+    ListaCategorias:
+      oneOf:
+        - type: array
+          items:
+            $ref: '#/components/schemas/Categoria'
+        - $ref: '#/components/schemas/PaginaCategorias'
+    ListaItens:
+      oneOf:
+        - type: array
+          items:
+            $ref: '#/components/schemas/Item'
+        - $ref: '#/components/schemas/PaginaItens'
+    ListaPedidos:
+      oneOf:
+        - type: array
+          items:
+            $ref: '#/components/schemas/Pedido'
+        - $ref: '#/components/schemas/PaginaPedidos'

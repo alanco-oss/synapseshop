@@ -51,9 +51,21 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'products.middleware.TraceIdMiddleware',
 ]
 
 ROOT_URLCONF = 'products.urls'
+
+
+# Interface da API: convenções documentadas na Aula 13
+# - paginação/filtros/ordenação em `products.api_conventions`;
+# - erros no envelope RFC 7807 em `products.exceptions`.
+
+REST_FRAMEWORK = {
+    'DEFAULT_PAGINATION_CLASS': 'products.api_conventions.PaginacaoPadrao',
+    'PAGE_SIZE': 20,
+    'EXCEPTION_HANDLER': 'products.exceptions.tratamento_de_erro',
+}
 
 
 # Cache-aside com Redis (Aula 8)

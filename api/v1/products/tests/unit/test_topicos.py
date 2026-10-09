@@ -3,7 +3,7 @@ import asyncio as asyncio_real
 from types import SimpleNamespace
 
 import pytest
-from aiokafka.admin import NewPartitions, NewTopic
+from aiokafka.admin import NewTopic
 
 from orders.mensageria import topicos
 

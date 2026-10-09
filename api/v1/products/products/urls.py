@@ -17,12 +17,16 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
-from . import health
+from . import health, openapi
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     # Rota de healthcheck do mini-backend (Aula 11)
     path('health', health.health, name='health'),
+    # Documentação interativa da API (Aula 13)
+    path('api/v1/schema/', openapi.schema, name='openapi-schema'),
+    path('api/v1/docs/', openapi.docs, name='swagger-ui'),
+    path('api/v1/redoc/', openapi.redoc, name='redoc'),
     path('api/v1/', include('catalog.urls')),
     path('api/v1/', include('orders.urls')),
 ]

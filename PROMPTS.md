@@ -333,4 +333,78 @@ Histórico de uso de IA generativa no desenvolvimento do SynapseShop.
 
 ---
 
+### Aula 13 — Documentação OpenAPI/Swagger e Postman/Insomnia
+
+#### 1. Contrato OpenAPI completo
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Implemente a spec `specs/specs_da_aula_13.md`: escreva o
+  `docs/openapi.yaml` (OpenAPI 3.0.3) com tags, descrições, exemplos de
+  `requestBody` e `responses`, `ErrorSchema` inspirado na RFC 7807, e as
+  convenções de paginação (`page`/`limit`/`nextCursor`), filtros (`?status=`),
+  ordenação (`sort=campo:asc|desc`) e cabeçalhos (`Authorization`,
+  `Idempotency-Key`, `X-Trace-Id`). Sem antecipar autenticação ou features de
+  aulas futuras."
+- **Decisões tomadas:**
+  - Contrato mantido à mão (fonte de verdade) e servido pela aplicação, para
+    permitir exemplos e descrições em português que o gerador automático do DRF
+    não produz.
+  - `preco`/`total` modelados como `string` com `pattern` decimal — é o que o
+    `DecimalField` do DRF serializa.
+  - Respostas de lista em `oneOf` (array simples **ou** envelope paginado),
+    refletindo a paginação opcional.
+  - `bearerAuth` documentado como opcional (`security: [{bearerAuth: []}, {}]`),
+    já que a API aceita pedidos anónimos.
+- **Impacto:** `docs/openapi.yaml` cobre 100% das rotas de `catalog` e `orders`,
+  `GET /health` e as próprias rotas de documentação.
+
+#### 2. Serviço do schema, Swagger UI e ReDoc
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Sirva o contrato em `/api/v1/schema/` e exponha as interfaces
+  Swagger UI (`/api/v1/docs/`) e ReDoc (`/api/v1/redoc/`) a partir da aplicação
+  Django, localizando o `openapi.yaml` de `docs/` mesmo dentro do contêiner."
+- **Decisões tomadas:** views leves em `products/openapi.py` sem novas
+  dependências Python; localização do ficheiro por busca ascendente a partir de
+  `products/` (localiza tanto no repositório como em `/app/docs/`); assets por
+  CDN, como no ecossistema Swagger/ReDoc.
+- **Impacto:** as três rotas passam a ser também documentadas e testáveis.
+
+#### 3. Convenções transversais e erros RFC 7807
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Padronize paginação, filtros e ordenação de forma
+  retrocompatível e normalize os erros no envelope RFC 7807, sem quebrar os
+  testes da Aula 12."
+- **Decisões tomadas:**
+  - `products/api_conventions.py`: paginação **opcional** (`page`/`limit`
+    ativam o envelope; sem eles a lista permanece igual), filtros por igualdade
+    e ordenação por lista de campos permitidos (nunca interpola colunas).
+  - `products/exceptions.py`: envelope `type`/`title`/`status`/`detail`/
+    `instance`, mantendo as chaves por campo no topo (o teste
+    `test_criacao_com_total_negativo_devolve_400` continua a encontrar `total`).
+  - `products/middleware.py`: `X-Trace-Id` gerado/preservado e devolvido.
+- **Impacto:** convenções exercitadas em `catalog` e `orders`; listagem de
+  pedidos sem parâmetros continua a usar o cache-aside (chave `pedidos:list`).
+
+#### 4. Lint, coleção Postman e checklist do integrador
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Configure o lint com Spectral e corrija os erros; exporte a
+  coleção Postman com *environment* e exemplos de sucesso/erro; e escreva a
+  Checklist do Integrador Externo (URLs, autenticação, *rate limits* e política
+  de versão)."
+- **Correções aplicadas:** o Spectral acusou `oas3-valid-media-example` nos
+  exemplos de `PATCH` (o schema de entrada exigia campos que o PATCH omite);
+  criados schemas `*Atualizacao` sem `required`. As regras
+  `path-keys-no-trailing-slash` e `operation-description` foram desligadas com
+  justificação (o DRF usa barra final e a descrição rica vive no
+  `info.description`).
+- **Impacto:** `npx @stoplight/spectral-cli lint docs/openapi.yaml` sem erros;
+  Postman com variáveis `baseUrl`/`token`/`traceId`/`idempotencyKey` e exemplos
+  200/201/400/402/409; `docs/checklist_integrador_externo.md` e `CHANGELOG.md`
+  criados.
+
+---
+
 *Este arquivo crescerá a cada aula conforme o uso de IA generativa no projeto.*

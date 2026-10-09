@@ -1,0 +1,22 @@
+extends:
+  - spectral:oas
+
+rules:
+  # O contrato é mantido à mão e intencionalmente usa exemplos em português.
+  info-contact: off
+  info-license: off
+  # APIs internas de um projeto didático não precisam de descrições de 250+
+  # caracteres em cada tag para passar no lint.
+  tag-description: off
+  # O DRF (DefaultRouter) expõe todas as rotas com barra final; a convenção é
+  # intencional e o `CommonMiddleware` acrescenta-a quando em falta.
+  path-keys-no-trailing-slash: off
+  # A descrição rica vive no `info.description` e no catálogo de schemas; a
+  # omissão de `description` por operação é aceitável neste contrato.
+  operation-description: off
+  operation-tag-defined: error
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-success-response: error
+  path-params: error
+  no-$ref-siblings: error

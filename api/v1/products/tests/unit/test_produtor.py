@@ -101,6 +101,42 @@ def test_estado_reinicia_apos_fechar(monkeypatch):
     assert len(criados) == 2
 
 
+def test_obter_produtor_reutiliza_instancia_existente(monkeypatch):
+    """Segunda chamada devolve o produtor já criado, sem arrancar outro loop."""
+    criados = _instalar_fakes(monkeypatch)
+
+    assert produtor.publicar_evento(EVENTO, topico=topicos.TOPICO_PEDIDO_CRIADO) is True
+
+    assert produtor._obter_produtor() is criados[0]
+    assert len(criados) == 1
+
+
+def test_arrancar_loop_espera_o_loop_ficar_pronto(monkeypatch):
+    """Cobre a espera ativa (``time.sleep``) enquanto o event loop não arranca."""
+    monkeypatch.setattr(
+        produtor, "_estado", {"loop": None, "produtor": None, "thread": None}
+    )
+    instantes = []
+    monkeypatch.setattr(produtor.time, "sleep", lambda s: instantes.append(s))
+
+    class LoopFalso:
+        def __init__(self):
+            self.verificacoes = 0
+
+        def run_forever(self):
+            pass
+
+        def is_running(self):
+            self.verificacoes += 1
+            return self.verificacoes > 1
+
+    monkeypatch.setattr(produtor.asyncio, "new_event_loop", lambda: LoopFalso())
+
+    produtor._arrancar_loop()
+
+    assert instantes == [0.01]
+
+
 def test_parar_produtor_que_levanta_erro(monkeypatch):
     class ProdutorAvaria(FakeProducer):
         async def stop(self):

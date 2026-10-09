@@ -2,13 +2,25 @@
   "info": {
     "_postman_id": "3a7d0c1e-b2f4-4e6a-9c1d-5f8e2a0b7c4d",
     "name": "SynapseShop API",
-    "description": "Coleção dos endpoints da API SynapseShop. Prefixo versionado /api/v1/. Recursos: Categorias (nome, descricao), Itens (nome, descricao, preco, estoque, categoria) e Pedidos (user_id, status, total, created_at). As requisições de cache ficam na pasta Pedidos: a lista e o detalhe usam cache-aside no Redis e retornam cache=miss na primeira chamada, cache=hit na segunda e registram as métricas em /pedidos/metricas-cache/.",
+    "description": "Coleção dos endpoints da API SynapseShop (Aula 13). Prefixo versionado /api/v1/. Recursos: Categorias (nome, descricao), Itens (nome, descricao, preco, estoque, categoria) e Pedidos (user_id, status, total, created_at). Convenções: paginação opcional via ?page=&limit=, filtros por igualdade (ex.: ?status=pending) e ordenação ?sort=campo:asc|desc. Cabeçalhos: Authorization (Bearer), Idempotency-Key (POST) e X-Trace-Id. Documentação interativa em /api/v1/docs/ (Swagger UI) e /api/v1/redoc/ (ReDoc); contrato em /api/v1/schema/.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
       "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "traceId",
+      "value": "4f2a9c1d8b7e4a6f"
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "3a7d0c1e-b2f4-4e6a-9c1d-5f8e2a0b7c4d"
     },
     {
       "key": "cat_id",
@@ -25,30 +37,99 @@
   ],
   "item": [
     {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Estado da API",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 ou 503', () => pm.expect([200, 503]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Trace-Id",
+                "value": "{{traceId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Estado da API e dependências (db obrigatório; redis/kafka opcionais)."
+          }
+        }
+      ]
+    },
+    {
       "name": "Categorias",
       "item": [
         {
           "name": "Listar categorias",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "X-Trace-Id",
+                "value": "{{traceId}}"
+              }
+            ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/categories/",
+              "raw": "{{baseUrl}}/api/v1/categories/?page=1&limit=20&sort=nome:asc",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "categories", ""]
+              "path": ["api", "v1", "categories", ""],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "sort", "value": "nome:asc" }
+              ]
             },
-            "description": "Lista todas as categorias. Esperado 200 OK."
-          }
+            "description": "Lista categorias. Com ?page=&limit= devolve o envelope paginado (count/next/previous/nextCursor/results)."          },
+          "response": [
+            {
+              "name": "200 — lista simples",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{baseUrl}}/api/v1/categories/", "host": ["{{baseUrl}}"], "path": ["api", "v1", "categories", ""] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "[\n  {\n    \"id\": 1,\n    \"nome\": \"Papelaria\",\n    \"descricao\": \"Material de papelaria\"\n  }\n]"
+            }
+          ]
         },
         {
           "name": "Criar categoria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('criado com 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Trace-Id", "value": "{{traceId}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
             ],
             "body": {
               "mode": "raw",
@@ -59,20 +140,42 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "categories", ""]
             },
-            "description": "Cria uma categoria. Esperado 201 Created."
-          }
+            "description": "Cria uma categoria. Esperado 201 Created; 400 se o nome faltar ou duplicar."
+          },
+          "response": [
+            {
+              "name": "201 — criada",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{\"nome\":\"Papelaria\"}" }, "url": { "raw": "{{baseUrl}}/api/v1/categories/", "host": ["{{baseUrl}}"], "path": ["api", "v1", "categories", ""] } },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"id\": 1,\n  \"nome\": \"Papelaria\",\n  \"descricao\": \"Material de papelaria\"\n}"
+            },
+            {
+              "name": "400 — nome em falta",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{}" }, "url": { "raw": "{{baseUrl}}/api/v1/categories/", "host": ["{{baseUrl}}"], "path": ["api", "v1", "categories", ""] } },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Requisição inválida\",\n  \"status\": 400,\n  \"detail\": \"Requisição inválida\",\n  \"instance\": \"/api/v1/categories/\",\n  \"errors\": { \"nome\": [\"Este campo é obrigatório.\"] },\n  \"nome\": [\"Este campo é obrigatório.\"]\n}"
+            }
+          ]
         },
         {
           "name": "Obter categoria por id",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
             "url": {
               "raw": "{{baseUrl}}/api/v1/categories/{{cat_id}}/",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "categories", "{{cat_id}}", ""]
             },
-            "description": "Recupera uma categoria. Esperado 200 OK."
+            "description": "Recupera uma categoria. 200 OK ou 404."
           }
         },
         {
@@ -80,10 +183,8 @@
           "request": {
             "method": "PUT",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Trace-Id", "value": "{{traceId}}" }
             ],
             "body": {
               "mode": "raw",
@@ -102,15 +203,10 @@
           "request": {
             "method": "PATCH",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Trace-Id", "value": "{{traceId}}" }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"descricao\": \"Atualização parcial\"\n}"
-            },
+            "body": { "mode": "raw", "raw": "{\n  \"descricao\": \"Atualização parcial\"\n}" },
             "url": {
               "raw": "{{baseUrl}}/api/v1/categories/{{cat_id}}/",
               "host": ["{{baseUrl}}"],
@@ -123,7 +219,7 @@
           "name": "Excluir categoria",
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
             "url": {
               "raw": "{{baseUrl}}/api/v1/categories/{{cat_id}}/",
               "host": ["{{baseUrl}}"],
@@ -141,13 +237,17 @@
           "name": "Listar itens",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/items/",
+              "raw": "{{baseUrl}}/api/v1/items/?categoria={{cat_id}}&sort=preco:asc",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "items", ""]
+              "path": ["api", "v1", "items", ""],
+              "query": [
+                { "key": "categoria", "value": "{{cat_id}}" },
+                { "key": "sort", "value": "preco:asc" }
+              ]
             },
-            "description": "Lista todos os itens do catálogo. Esperado 200 OK."
+            "description": "Lista itens, com filtro por categoria e ordenação por preço."
           }
         },
         {
@@ -155,10 +255,9 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Trace-Id", "value": "{{traceId}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
             ],
             "body": {
               "mode": "raw",
@@ -169,20 +268,32 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "items", ""]
             },
-            "description": "Cria um item do catálogo. Esperado 201 Created."
-          }
+            "description": "Cria um item. 201 Created; 400 para preço negativo ou categoria inexistente."
+          },
+          "response": [
+            {
+              "name": "400 — preço negativo",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{\"nome\":\"X\",\"preco\":\"-1.00\"}" }, "url": { "raw": "{{baseUrl}}/api/v1/items/", "host": ["{{baseUrl}}"], "path": ["api", "v1", "items", ""] } },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Requisição inválida\",\n  \"status\": 400,\n  \"detail\": \"Requisição inválida\",\n  \"instance\": \"/api/v1/items/\",\n  \"errors\": { \"preco\": [\"O preço deve ser um valor não negativo.\"] },\n  \"preco\": [\"O preço deve ser um valor não negativo.\"]\n}"
+            }
+          ]
         },
         {
           "name": "Obter item por id",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
             "url": {
               "raw": "{{baseUrl}}/api/v1/items/{{item_id}}/",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "items", "{{item_id}}", ""]
             },
-            "description": "Recupera um item. Esperado 200 OK."
+            "description": "Recupera um item. 200 OK ou 404."
           }
         },
         {
@@ -190,10 +301,8 @@
           "request": {
             "method": "PUT",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Trace-Id", "value": "{{traceId}}" }
             ],
             "body": {
               "mode": "raw",
@@ -212,15 +321,10 @@
           "request": {
             "method": "PATCH",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Trace-Id", "value": "{{traceId}}" }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"estoque\": 40\n}"
-            },
+            "body": { "mode": "raw", "raw": "{\n  \"estoque\": 40\n}" },
             "url": {
               "raw": "{{baseUrl}}/api/v1/items/{{item_id}}/",
               "host": ["{{baseUrl}}"],
@@ -233,13 +337,13 @@
           "name": "Excluir item",
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
             "url": {
               "raw": "{{baseUrl}}/api/v1/items/{{item_id}}/",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "items", "{{item_id}}", ""]
             },
-            "description": "Exclui um item do catálogo. Esperado 204 No Content."
+            "description": "Exclui um item. Esperado 204 No Content."
           }
         }
       ]
@@ -251,48 +355,197 @@
           "name": "Listar pedidos",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/pedidos/",
+              "raw": "{{baseUrl}}/api/v1/pedidos/?status=pending&sort=createdAt:desc",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "pedidos", ""]
+              "path": ["api", "v1", "pedidos", ""],
+              "query": [
+                { "key": "status", "value": "pending" },
+                { "key": "sort", "value": "createdAt:desc" }
+              ]
             },
-            "description": "Lista os pedidos com cache-aside. 1a chamada: cache=miss e preenche a chave pedidos:list (TTL 60s). 2a chamada: cache=hit. Os pedidos do mesmo cache sao os mesmos."
-          }
+            "description": "Lista pedidos. Sem parâmetros usa cache-aside (pedidos:list, TTL 60s); com filtros/ordenação/paginação consulta a base de dados."
+          },
+          "response": [
+            {
+              "name": "200 — com ?page=1&limit=1",
+              "originalRequest": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/v1/pedidos/?page=1&limit=1", "host": ["{{baseUrl}}"], "path": ["api", "v1", "pedidos", ""], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "1" }] } },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"count\": 1,\n  \"next\": null,\n  \"previous\": null,\n  \"nextCursor\": null,\n  \"results\": [\n    {\n      \"id\": 1,\n      \"user_id\": 7,\n      \"status\": \"pending\",\n      \"total\": \"129.90\",\n      \"created_at\": \"2026-01-15T12:00:00Z\"\n    }\n  ]\n}"
+            }
+          ]
         },
         {
           "name": "Criar pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('pedido_id', pm.response.json().id); }",
+                  "pm.test('criado com 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Trace-Id", "value": "{{traceId}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": 1,\n  \"status\": \"pending\",\n  \"total\": \"149.90\"\n}"
+              "raw": "{\n  \"user_id\": 7,\n  \"status\": \"pending\",\n  \"total\": \"129.90\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/pedidos/",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "pedidos", ""]
             },
-            "description": "Cria um pedido. Esperado 201 Created. Invalida a chave da lista, entao a proxima listagem volta a ser miss."
+            "description": "Cria um pedido (201), invalida a lista e publica PedidoCriado. 400 para total negativo."
+          },
+          "response": [
+            {
+              "name": "201 — criado",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{\"user_id\":7,\"total\":\"129.90\"}" }, "url": { "raw": "{{baseUrl}}/api/v1/pedidos/", "host": ["{{baseUrl}}"], "path": ["api", "v1", "pedidos", ""] } },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"id\": 1,\n  \"user_id\": 7,\n  \"status\": \"pending\",\n  \"total\": \"129.90\",\n  \"created_at\": \"2026-01-15T12:00:00Z\"\n}"
+            },
+            {
+              "name": "400 — total negativo",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{\"user_id\":7,\"total\":\"-10.00\"}" }, "url": { "raw": "{{baseUrl}}/api/v1/pedidos/", "host": ["{{baseUrl}}"], "path": ["api", "v1", "pedidos", ""] } },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Requisição inválida\",\n  \"status\": 400,\n  \"detail\": \"Requisição inválida\",\n  \"instance\": \"/api/v1/pedidos/\",\n  \"errors\": { \"total\": [\"O total do pedido deve ser um valor não negativo.\"] },\n  \"total\": [\"O total do pedido deve ser um valor não negativo.\"]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Obter pedido por id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pedidos/{{pedido_id}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "pedidos", "{{pedido_id}}", ""]
+            },
+            "description": "Recupera um pedido do ORM. 200 OK ou 404."
           }
         },
         {
-          "name": "Detalhes do pedido",
+          "name": "Detalhes do pedido (cache)",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
             "url": {
               "raw": "{{baseUrl}}/api/v1/pedidos/{{pedido_id}}/detalhes/",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "pedidos", "{{pedido_id}}", "detalhes"]
+              "path": ["api", "v1", "pedidos", "{{pedido_id}}", "detalhes", ""]
             },
-            "description": "Detalhe de um pedido, cacheado na chave pedido:{id} (TTL 300s). 1a chamada: cache=miss. 2a chamada: cache=hit. Pedido inexistente retorna 404 e nao e cacheado."
+            "description": "Detalhe cacheado em pedido:{id} (TTL 300s). 1a chamada miss, 2a hit; 404 não é cacheado."
+          }
+        },
+        {
+          "name": "Pagar pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200, 402 ou 409', () => pm.expect([200, 402, 409]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Trace-Id", "value": "{{traceId}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"aprovado\": true\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pedidos/{{pedido_id}}/pagar/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "pedidos", "{{pedido_id}}", "pagar", ""]
+            },
+            "description": "200 aprovado, 402 recusado, 409 estado inválido, 400 payload inválido."
+          },
+          "response": [
+            {
+              "name": "200 — aprovado",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{\"aprovado\":true}" }, "url": { "raw": "{{baseUrl}}/api/v1/pedidos/1/pagar/", "host": ["{{baseUrl}}"], "path": ["api", "v1", "pedidos", "1", "pagar", ""] } },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"pedido_id\": 1,\n  \"status\": \"paid\",\n  \"aprovado\": true,\n  \"evento_publicado\": true\n}"
+            },
+            {
+              "name": "402 — recusado",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{\"aprovado\":false}" }, "url": { "raw": "{{baseUrl}}/api/v1/pedidos/1/pagar/", "host": ["{{baseUrl}}"], "path": ["api", "v1", "pedidos", "1", "pagar", ""] } },
+              "status": "Payment Required",
+              "code": 402,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"pedido_id\": 1,\n  \"status\": \"pending\",\n  \"aprovado\": false,\n  \"evento_publicado\": true\n}"
+            },
+            {
+              "name": "409 — estado inválido",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{\"aprovado\":true}" }, "url": { "raw": "{{baseUrl}}/api/v1/pedidos/1/pagar/", "host": ["{{baseUrl}}"], "path": ["api", "v1", "pedidos", "1", "pagar", ""] } },
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Conflito de estado\",\n  \"status\": 409,\n  \"detail\": \"O pedido 1 nao esta pendente (status=paid).\",\n  \"instance\": \"/api/v1/pedidos/1/pagar/\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Métricas do cache",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pedidos/metricas-cache/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "pedidos", "metricas-cache", ""]
+            },
+            "description": "Hits, misses e hit rate por endpoint, lidos do Redis."
+          }
+        },
+        {
+          "name": "Métricas da mensageria",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pedidos/metricas-mensageria/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "pedidos", "metricas-mensageria", ""]
+            },
+            "description": "Latência e throughput acumulados do produtor/consumidor e notificações."
           }
         },
         {
@@ -300,47 +553,73 @@
           "request": {
             "method": "PATCH",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Trace-Id", "value": "{{traceId}}" }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"paid\"\n}"
-            },
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"cancelled\"\n}" },
             "url": {
               "raw": "{{baseUrl}}/api/v1/pedidos/{{pedido_id}}/",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "pedidos", "{{pedido_id}}", ""]
             },
-            "description": "Atualiza parcialmente e invalida o detalhe e a lista. Use-o para verificar a invalidacao: depois dele, as duas leituras voltam a ser cache=miss."
-          }
-        },
-        {
-          "name": "Métricas do cache",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/pedidos/metricas-cache/",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "pedidos", "metricas-cache"]
-            },
-            "description": "Hits, misses e hit rate de lista e detalhes, lidos do Redis. Funciona mesmo com o Redis parado (zera os contadores e devolve 200)."
+            "description": "Atualiza e invalida o detalhe e a lista."
           }
         },
         {
           "name": "Excluir pedido",
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [{ "key": "X-Trace-Id", "value": "{{traceId}}" }],
             "url": {
               "raw": "{{baseUrl}}/api/v1/pedidos/{{pedido_id}}/",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "pedidos", "{{pedido_id}}", ""]
             },
             "description": "Exclui um pedido e invalida o detalhe e a lista. Esperado 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documentação",
+      "item": [
+        {
+          "name": "Contrato OpenAPI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/schema/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "schema", ""]
+            },
+            "description": "Contrato OpenAPI em YAML servido pela aplicação."
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/docs/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "docs", ""]
+            },
+            "description": "Interface interativa (abrir no navegador)."
+          }
+        },
+        {
+          "name": "ReDoc",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/redoc/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "redoc", ""]
+            },
+            "description": "Documentação de referência (abrir no navegador)."
           }
         }
       ]

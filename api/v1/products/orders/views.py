@@ -2,17 +2,47 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from products.api_conventions import aplicar_filtros, aplicar_ordenacao
+
 from . import cache as cache_pedidos
 from .mensageria import contrato, metricas, produtor, topicos
 from .models import Order
 from .serializers import OrderSerializer, PagamentoSimuladoSerializer
 
+# Parâmetros que tornam a listagem personalizada (e portanto não cacheável).
+PARAMETROS_CONSULTA = ("status", "user_id", "sort", "page", "limit")
+
 
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
+    ordenacao_padrao = "-created_at"
+    mapa_filtros = {"status": "status", "user_id": "user_id"}
+    mapa_ordenacao = {
+        "createdAt": "created_at",
+        "total": "total",
+        "status": "status",
+        "id": "id",
+    }
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        queryset = aplicar_filtros(queryset, self.request, self.mapa_filtros)
+        return aplicar_ordenacao(
+            queryset, self.request, self.mapa_ordenacao, self.ordenacao_padrao
+        )
 
     def list(self, request, *args, **kwargs):
+        # A listagem padrão (sem parâmetros) usa a chave de cache da Aula 8.
+        # Filtros/ordenação/paginação consultam a base de dados diretamente.
+        if any(parametro in request.query_params for parametro in PARAMETROS_CONSULTA):
+            queryset = self.get_queryset()
+            paginada = self.paginate_queryset(queryset)
+            if paginada is not None:
+                serializador = self.get_serializer(paginada, many=True)
+                return self.get_paginated_response(serializador.data)
+            return Response(self.get_serializer(queryset, many=True).data)
+
         def carregar():
             return OrderSerializer(self.get_queryset(), many=True).data
 
