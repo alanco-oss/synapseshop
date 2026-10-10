@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'catalog.apps.CatalogConfig',
     'orders.apps.OrdersConfig',
+    'assist.apps.AssistConfig',
 ]
 
 MIDDLEWARE = [
@@ -112,6 +113,11 @@ LOGGING = {
         'orders.mensageria': {
             'handlers': ['console'],
             'level': os.getenv('MESSAGING_LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+        'assist': {
+            'handlers': ['console'],
+            'level': os.getenv('ASSIST_LOG_LEVEL', 'INFO'),
             'propagate': False,
         },
     },

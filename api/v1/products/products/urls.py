@@ -29,4 +29,5 @@ urlpatterns = [
     path('api/v1/redoc/', openapi.redoc, name='redoc'),
     path('api/v1/', include('catalog.urls')),
     path('api/v1/', include('orders.urls')),
+    path('api/v1/', include('assist.urls')),
 ]

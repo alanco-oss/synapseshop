@@ -18,6 +18,8 @@ info:
     - **Ordenação:** `?sort=campo:asc|desc` (ex.: `?sort=createdAt:desc`).
     - **Erros:** envelope inspirado na RFC 7807 (`problem+json`), com os erros
       de validação replicados por campo.
+    - **Assistente (Aula 14):** `POST /api/v1/assist/` resume ou explica logs
+      no provedor de LLM; PII e segredos são redigidos antes do envio.
 
     ## Cabeçalhos obrigatórios e opcionais
     - `Authorization: Bearer <token>` — reservado para autenticação; hoje a API
@@ -46,6 +48,8 @@ tags:
     description: Categorias e itens do catálogo.
   - name: Pedidos
     description: Pedidos, pagamento simulado, cache e métricas de mensageria.
+  - name: Assistente
+    description: Resumo e explicação de logs via provedor de LLM.
   - name: Documentação
     description: Artefactos de documentação (Swagger UI, ReDoc e schema).
 paths:
@@ -642,6 +646,50 @@ paths:
             text/html:
               schema:
                 type: string
+  /api/v1/assist/:
+      parameters:
+        - $ref: '#/components/parameters/TraceId'
+      post:
+        tags: [Assistente]
+        operationId: assistirLogs
+        summary: Resume ou explica logs com IA
+        description: |
+          Envia logs (string ou lista) ao provedor de LLM para sumarização ou
+          explicação, controlando `temperature` e `max_tokens`. Dados sensíveis
+          (PII e segredos) são redigidos antes de saírem do processo. Falhas
+          transitórias são retentadas com backoff exponencial e jitter; o
+          circuito aberto devolve 503.
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistEntrada'
+              example:
+                mode: summarize
+                logs:
+                  - 'erro ao autenticar joao@empresa.com'
+                  - 'timeout no pagamento'
+                temperature: 0.3
+                max_tokens: 256
+        responses:
+          '200':
+            description: Resposta gerada e metadados de consumo.
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AssistResposta'
+                example:
+                  answer: 'O log regista uma falha de autenticação e um timeout no pagamento.'
+                  meta:
+                    tokens_prompt: 128
+                    tokens_output: 45
+          '400':
+            $ref: '#/components/responses/BadRequest'
+          '502':
+            $ref: '#/components/responses/GatewayInvalido'
+          '503':
+            $ref: '#/components/responses/AssistenteIndisponivel'
 components:
   securitySchemes:
     bearerAuth:
@@ -821,6 +869,30 @@ components:
             status: 500
             detail: Erro interno do servidor
             instance: /api/v1/pedidos/
+    GatewayInvalido:
+      description: O provedor de LLM devolveu um erro determinístico (4xx).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: about:blank
+            title: Gateway inválido
+            status: 502
+            detail: 'O provedor de LLM devolveu um erro (HTTP 401).'
+            instance: /api/v1/assist/
+    AssistenteIndisponivel:
+      description: Provedor de LLM indisponível ou circuito aberto.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: about:blank
+            title: Serviço indisponível
+            status: 503
+            detail: 'O provedor de LLM nao respondeu apos 3 tentativas (HTTP 500).'
+            instance: /api/v1/assist/
   schemas:
     Health:
       type: object
@@ -1208,3 +1280,54 @@ components:
           items:
             $ref: '#/components/schemas/Pedido'
         - $ref: '#/components/schemas/PaginaPedidos'
+    AssistEntrada:
+      type: object
+      required: [mode, logs]
+      properties:
+        mode:
+          type: string
+          enum: [summarize, explain]
+          description: '`summarize` resume o log; `explain` explica-o.'
+          example: summarize
+        logs:
+          oneOf:
+            - type: string
+              example: 'erro ao autenticar utilizador'
+            - type: array
+              items:
+                type: string
+              example: ['erro ao autenticar', 'timeout no pagamento']
+          description: Log(s) a resumir/explicar; dados sensíveis são redigidos.
+        temperature:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 0.3
+          example: 0.3
+        max_tokens:
+          type: integer
+          minimum: 1
+          default: 256
+          example: 256
+    AssistResposta:
+      type: object
+      required: [answer, meta]
+      properties:
+        answer:
+          type: string
+          example: 'O log regista uma falha de autenticação e um timeout no pagamento.'
+        meta:
+          $ref: '#/components/schemas/AssistMeta'
+    AssistMeta:
+      type: object
+      required: [tokens_prompt, tokens_output]
+      properties:
+        tokens_prompt:
+          type: integer
+          description: Tokens enviados no pedido ao provedor.
+          example: 128
+        tokens_output:
+          type: integer
+          description: Tokens gerados pelo provedor.
+          example: 45

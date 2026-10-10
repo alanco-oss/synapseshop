@@ -13,10 +13,13 @@ Convenções da equipa:
 import os
 
 import pytest
+import requests
 from django.core.cache import cache
 from freezegun import freeze_time
 from rest_framework.test import APIClient
 
+import assist.llm_service as llm_service
+from assist.circuit_breaker import INTERRUPTOR
 from orders.mensageria import produtor, topicos
 
 # Os testes dos workers patcham ``sync_to_async`` para correr na propria thread
@@ -75,3 +78,38 @@ def fabrica_pedido():
         return payload
 
     return _fabricar
+
+
+@pytest.fixture
+def provedor_falso(monkeypatch):
+    """Fake do transporte HTTP: responde segundo a fila, sem tocar na rede."""
+    fila = []
+    registo = {"chamadas": 0, "payloads": [], "timeout": None}
+
+    def _post(url, headers=None, json=None, timeout=None):
+        registo["chamadas"] += 1
+        registo["payloads"].append(json)
+        registo["timeout"] = timeout
+        if not fila:
+            raise AssertionError("provedor_falso: fila de respostas vazia")
+        acao = fila.pop(0)
+        if isinstance(acao, Exception):
+            raise acao
+        return acao
+
+    monkeypatch.setattr(llm_service.requests, "post", _post)
+    return {"fila": fila, "registo": registo}
+
+
+@pytest.fixture(autouse=True)
+def interruptor_reset():
+    """Circuit breaker isolado entre testes (estado em memória global)."""
+    INTERRUPTOR.resetar()
+    yield
+    INTERRUPTOR.resetar()
+
+
+@pytest.fixture
+def sem_dormir(monkeypatch):
+    """Backoff instantâneo: nenhum teste do assistente dorme durante o retry."""
+    monkeypatch.setattr(llm_service.time, "sleep", lambda _: None)

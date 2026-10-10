@@ -4,6 +4,38 @@ Todas as alterações relevantes do SynapseShop. O formato segue
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto adota
 versionamento por rota (`/api/v1/`).
 
+## [Aula 14] — Assistente de IA com `llm_service` resiliente
+
+### Adicionado
+- App `assist` (`api/v1/products/assist/`) com `POST /api/v1/assist`
+  (`summarize`/`explain`) — aceita também a forma com barra final.
+- `llm_service` com timeout ≤ 5 s, 3 tentativas de retry com *backoff*
+  exponencial + *jitter* e circuit breaker (aberto → meio-aberto → fechado).
+- `redaction.py` — redação de PII (emails, CPF/CNPJ, cartões, telefones, IPs,
+  `Bearer`, linha de senhas/segredos) antes do envio e nos logs.
+- Telemetria em logs estruturados com duração, tentativas, HTTP status e custo
+  estimado (com pedido/prompt sempre redigidos).
+- Testes: `test_redaction.py`, `test_prompts.py`, `test_llm_service.py` e
+  `test_assist_endpoint.py` (32 testes; suíte completa 223 verdes, 98%).
+- `specs/issues_da_aula_14.md` — pendências extra-spec registadas.
+
+### Alterado
+- `products/settings.py`/`urls.py`: registo do app e das rotas `assist`.
+- `products/exceptions.py`: `TITULOS` ganhou `502` (gateway inválido) e `503`
+  (serviço indisponível) para o envelope RFC 7807.
+- `requirements.txt` (`requests==2.32.5`), `pytest.ini`
+  (`--cov=assist`) e `docker-compose.yml` (envs `LLM_*` no serviço `api`).
+- `README.md` (capítulo Aula 14), `PROMPTS.md` (histórico) e `CHANGELOG.md`.
+- `docs/openapi.yaml`: tag `Assistente`, path `/api/v1/assist/`, respostas
+  `GatewayInvalido`/`AssistenteIndisponivel` e schemas `AssistEntrada`,
+  `AssistResposta`, `AssistMeta`; lint Spectral sem erros.
+- Coleção Postman com a pasta `Assistente` (casos 200/400/503).
+
+### Escopo
+- Assistente de logs resiliente, com testes *offline* (provedor fake). Sem
+  métricas de Redis para o circuito, cache de respostas, guardrails, testes de
+  integração, streaming, rotação segura de chave ou autenticação do endpoint.
+
 ## [Aula 13] — Documentação OpenAPI/Swagger e Postman/Insomnia
 
 ### Adicionado

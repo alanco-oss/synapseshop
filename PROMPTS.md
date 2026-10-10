@@ -407,4 +407,87 @@ Histórico de uso de IA generativa no desenvolvimento do SynapseShop.
 
 ---
 
+### Aula 14 — Assistente de IA com `llm_service` resiliente
+
+#### 1. App `assist` e endpoint `POST /api/v1/assist`
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Implemente a spec da Aula 14: um app `assist` com endpoint
+  `POST /api/v1/assist/` que resume ou explica logs via provedor de LLM, com
+  redação de PII, timeout ≤ 5 s, retry com backoff exponencial + jitter, circuit
+  breaker e telemetria; sem antecipar funcionalidades fora da spec."
+- **Decisões tomadas:**
+  - App `assist` dentro de `api/v1/products/assist/` (regra SpecDD: todo o
+    código vive em `products`, nada é antecipado fora da spec).
+  - Rota por `re_path` aceita `/api/v1/assist` e `/api/v1/assist/` (a spec usa
+    a forma sem barra; o DRF usa barra final).
+  - Validação manual de `mode` (`summarize`/`explain`), `temperature`
+    (0.0–1.0, padrão 0.3) e `max_tokens` (≥ 1, padrão 256); `logs` aceita
+    string ou lista, sem vazio; erros no envelope RFC 7807 (400).
+  - Cliente HTTP `requests` (decisão do utilizador), pinado em
+    `requirements.txt`.
+- **Impacto:** endpoint funcional e testado end-to-end via Docker; sem
+  `LLM_API_KEY` devolve 503 (caminho validável localmente sem custo de tokens).
+
+#### 2. `llm_service` resiliente (timeout, retry e circuit breaker)
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Modele o `llm_service` como cascata `call`/`_resposta_do_provedor`/
+  `_autenticacao`/`_falar_com_llm` com timeout por leitura ≤ 5 s, 3 tentativas
+  com backoff `2^t` + jitter e um circuit breaker com estados
+  closed/open/half-open."
+- **Decisões tomadas:**
+  - Retry apenas para 429, 5xx, `ConectionError` e timeouts; 4xx não-429
+    falha imediato (`ErroProvedor` → 502).
+  - Circuit breaker conta **chamadas de negócio** falhas (3), não tentativas
+    HTTP; `timeout_aberto` (60 s) devolve o estado como `half_open` para testar
+    o provedor; aviso distinto no log.
+  - `ServicoIndisponivel` (→ 503) para retentativas esgotadas, chave ausente ou
+    circuito aberto.
+- **Impacto:** com o provedor a devolver 401 (chave ausente), a resposta é 502
+  no primeiro pedido (determinístico, sem retry) — validado contra o container.
+
+#### 3. Redação de PII e telemetria
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Redija dados sensíveis (emails, CPF/CNPJ, cartões, telefones, IPs,
+  tokens `Bearer`, linhas de `senha`/`segredo`) antes de qualquer envio ao LLM e
+  nos logs estruturados de telemetria (duração, tentativas, custo estimado)."
+- **Correções aplicadas:** a ordem dos `PADROES` importava — o padrão de
+  telefone casava dígitos de uma senha (`senha=12345678`), deixando o teste
+  `test_redige_string_simples` vermelho; os padrões com chave
+  (`Bearer`/`segredo`) foram movidos para o topo, corrigindo a regressão.
+- **Impacto:** `[REDIGIDO:<tipo>]` é o único texto enviado e registado; nenhum
+  dado original sai do processo.
+
+#### 4. Testes unitários offline
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Escreva a suíte de testes com provedor fake e sem rede, cobrindo
+  redação, prompts, retry/backoff/jitter, circuit breaker e o endpoint."
+- **Decisões tomadas:** fixtures `provedor_falso`, `interruptor_reset`
+  (autouse) e `sem_dormir`; 32 testes novos; `pytest.ini` com `--cov=assist`.
+- **Correções aplicadas:** `test_half_open_sucesso_fecha_circuito` com
+  `timeout_aberto=0` — o cooldown já decorreu logo após abrir, pelo que a
+  segunda chamada vê `half_open` e não `open`; o assert foi ajustado à semântica
+  da propriedade `estado`.
+- **Impacto:** 223 testes verdes, 98% de cobertura; `manage.py check` sem
+  problemas.
+
+#### 5. Documentação (OpenAPI, Postman, README, CHANGELOG, issues)
+
+- **Ferramenta:** OpenCode
+- **Prompt:** "Atualize `docs/openapi.yaml`, a coleção Postman, o README, o
+  CHANGELOG e este histórico; registe as pendências extra-spec em
+  `specs/issues_da_aula_14.md`; valide o contrato com Spectral."
+- **Correções aplicadas:** na 1.ª edição do `openapi.yaml` o bloco do path
+  entrou sem indentação (ficou como filha de `components:`), reprovado pelo
+  Spectral com `oas3-schema`; a indentação de 2 espaços foi restaurada e o lint
+  voltou a passar sem erros.
+- **Impacto:** contrato OpenAPI (tag `Assistente`, schemas `AssistEntrada`/
+  `AssistResposta`/`AssistMeta`, respostas 502/503) coerente com a implementação;
+  Postman com pasta `Assistente` e exemplos 200/400/503.
+
+---
+
 *Este arquivo crescerá a cada aula conforme o uso de IA generativa no projeto.*

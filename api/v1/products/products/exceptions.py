@@ -19,6 +19,8 @@ TITULOS = {
     415: "Tipo de mídia não suportado",
     429: "Demasiadas requisições",
     500: "Erro interno do servidor",
+    502: "Gateway inválido",
+    503: "Serviço indisponível",
 }
 
 
