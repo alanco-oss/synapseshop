@@ -18,7 +18,7 @@ import statistics
 import sys
 import time
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from aiokafka import AIOKafkaConsumer
@@ -33,7 +33,7 @@ GRUPO_LEITURA = "synapseshop-estatisticas-stream"
 
 def _latencia(evento):
     ocorrido = datetime.fromisoformat(evento["occurred_at"])
-    return (datetime.now(timezone.utc) - ocorrido).total_seconds() * 1000
+    return (datetime.now(UTC) - ocorrido).total_seconds() * 1000
 
 
 async def colecionar(bootstrap, limite, duracao):

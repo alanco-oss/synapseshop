@@ -30,9 +30,6 @@ class PagamentoSimuladoSerializer(serializers.Serializer):
         desconhecidos = set(self.initial_data) - permitidos
         if desconhecidos:
             raise serializers.ValidationError(
-                {
-                    campo: "Campo desconhecido no payload de pagamento."
-                    for campo in sorted(desconhecidos)
-                }
+                dict.fromkeys(sorted(desconhecidos), "Campo desconhecido no payload de pagamento.")
             )
         return attrs

@@ -1,6 +1,6 @@
+from models.user import User, UserRole
 from sqlalchemy.orm import Session
-from models.user import User
-from models.user import UserRole
+
 
 class UserRepository:
     def __init__(self, db: Session):

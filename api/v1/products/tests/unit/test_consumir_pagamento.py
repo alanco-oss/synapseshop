@@ -11,8 +11,8 @@ from types import SimpleNamespace
 import pytest
 
 from orders import cache as cache_pedidos
-from orders.mensageria import idempotencia
 from orders.management.commands import consumir_pagamento as cmd
+from orders.mensageria import idempotencia
 from orders.models import Order
 
 
@@ -295,7 +295,7 @@ def test_arrancar_repete_ate_conseguir(monkeypatch):
         tentativas["n"] += 1
         return FakeConsumidor(falhar_start=tentativas["n"] == 1)
 
-    instancia = _rodar(cmd.Command()._arrancar(fabrica, "consumidor"))
+    _rodar(cmd.Command()._arrancar(fabrica, "consumidor"))
 
     assert tentativas["n"] == 2
     assert atrasos == [1.0]
@@ -324,7 +324,7 @@ def test_consumir_processa_mensagens_e_para_tudo(monkeypatch):
             try:
                 return next(self._it)
             except StopIteration:
-                raise StopAsyncIteration
+                raise StopAsyncIteration from None
 
     async def garantir_com_retry():
         garantido.append(1)

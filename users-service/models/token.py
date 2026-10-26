@@ -1,8 +1,7 @@
-import os
-import sys
 
-from sqlalchemy import Index, ForeignKey, DateTime, Column, Integer, String, Index
-from database import Base 
+from database import Base
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
+
 
 class Token(Base):
     __tablename__ = "tokens"

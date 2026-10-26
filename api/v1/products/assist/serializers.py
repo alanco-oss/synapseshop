@@ -40,9 +40,6 @@ class AssistSerializer(serializers.Serializer):
         desconhecidos = set(self.initial_data) - permitidos
         if desconhecidos:
             raise serializers.ValidationError(
-                {
-                    campo: "Campo desconhecido no payload do assistente."
-                    for campo in sorted(desconhecidos)
-                }
+                dict.fromkeys(sorted(desconhecidos), "Campo desconhecido no payload do assistente.")
             )
         return attrs

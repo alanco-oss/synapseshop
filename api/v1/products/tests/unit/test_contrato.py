@@ -1,5 +1,5 @@
 """Testes unitários dos contratos de eventos (orders/mensageria/contrato.py)."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from uuid import UUID
@@ -17,7 +17,7 @@ def pedido():
         user_id=7,
         total=Decimal("129.90"),
         status="pending",
-        created_at=datetime(2026, 1, 15, 11, 59, 59, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, 15, 11, 59, 59, tzinfo=UTC),
     )
 
 

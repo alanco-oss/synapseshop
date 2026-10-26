@@ -4,6 +4,61 @@ Todas as alterações relevantes do SynapseShop. O formato segue
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto adota
 versionamento por rota (`/api/v1/`).
 
+## [Otimização — Onda 0] — Rede de segurança: CI, lint e testes sem Docker
+
+### Adicionado
+- `.github/workflows/ci.yml` — pipeline com três *jobs*: `testes` (matriz
+  SQLite + PostgreSQL, gate de cobertura), `lint` (ruff + Spectral) e `build`
+  (as duas imagens Docker). Dispara em *push* e *pull request* para
+  `master`/`main`.
+- `api/v1/products/products/settings_test.py` — settings de teste com SQLite em
+  memória; a suíte passou a correr **sem Docker, Postgres, Redis ou Kafka**
+  (de ~19 s com erros de ligação para ~2 s com 223 testes verdes).
+- `ruff.toml` e `.editorconfig` — convenções de lint e de edição partilhadas.
+- `tasks.py` — comandos de operação em Python puro (`test`, `coverage`,
+  `lint`, `check`, `up`, `down`, `build`, `clean`), funcionam em Windows,
+  Linux e macOS sem instalar nada.
+- `.gitattributes` — finais de linha normalizados em LF em todo o repositório
+  (elimina o aviso `LF will be replaced by CRLF` e o ruído entre SO).
+- Secção "Comandos de operação" no topo do `README.md`.
+
+### Corrigido
+- `tests/unit/test_produtor.py` — o fake `LoopFalso` não era um event loop
+  válido, e `asyncio.set_event_loop` estourava dentro da thread
+  `kafka-produtor-loop`, deixando uma exceção não tratada a cada execução.
+  Agora o fake herda de `asyncio.AbstractEventLoop`.
+- `products/openapi.py` — a substituição do URL do esquema usava `%`-formatting;
+  passou a `str.replace` (o template tem JavaScript com `{}` que colidiria com
+  f-strings e `.format`).
+- `assist/views.py`, `users-service/dependencies.py` e
+  `users-service/routers/auth_router.py` — reencaminhamento de exceções sem
+  `from erro` (encadeamento perdido no traceback).
+- `users-service/alembic/env.py` — variável `url` morta (o código usava
+  `DATABASE_URL`); imports duplicados.
+- `users-service/models/token.py` — `Index` importado duas vezes.
+- `.gitignore` — `.postman/` ignorava a pasta que contém
+  `resources.yaml`, a ligação ao workspace partilhado (que tem de estar no
+  controlo de versões).
+
+### Alterado
+- `api/v1/products/pytest.ini` — aponta para `products.settings_test`;
+  `--strict-markers` e `--strict-config`; as exceções não tratadas em threads
+  passam a falhar a suite em vez de passar em silêncio.
+- `inventory/models.py` e `users-service/models/user.py` — `str, Enum` passou a
+  `enum.StrEnum`.
+- `api/v1/products/tests/conftest.py` — import `requests` não utilizado
+  removido; `tests/unit/test_topicos.py` e os testes dos workers — limpeza de
+  variáveis mortas e de comprehensions redundantes.
+- Repositório inteiro sem violações do ruff: **144 → 0** (imports ordenados,
+  imports mortos removidos, `Optional[X]` → `X | None`, `timezone.utc` →
+  `datetime.UTC`, whitespace normalizado).
+- `README.md` — secção "Como executar os testes" reescrita para os novos
+  comandos e para a execução sem Docker.
+
+### Sem impacto no exterior
+- Contrato HTTP `/api/v1/*` inalterado; `docs/openapi.yaml` inalterado; a
+  coleção Postman inalterada.
+
 ## [Aula 14] — Assistente de IA com `llm_service` resiliente
 
 ### Adicionado

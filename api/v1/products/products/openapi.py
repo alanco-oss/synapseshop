@@ -30,6 +30,11 @@ def schema(request):
     )
 
 
+# O esquema e injetado por `str.replace` (e nao por f-string/`.format`) porque
+# os blocos de JavaScript abaixo contem `{` e `}` que colidiria com qualquer
+# dos dois.
+_PLACEHOLDER_SCHEMA = "__SCHEMA_URL__"
+
 _SWAGGER = """<!DOCTYPE html>
 <html lang="pt">
 <head>
@@ -44,7 +49,7 @@ _SWAGGER = """<!DOCTYPE html>
   <script>
     window.addEventListener("load", function () {
       window.ui = SwaggerUIBundle({
-        url: "%(schema)s",
+        url: "__SCHEMA_URL__",
         dom_id: "#swagger-ui",
         deepLinking: true,
         presets: [SwaggerUIBundle.presets.apis],
@@ -54,7 +59,7 @@ _SWAGGER = """<!DOCTYPE html>
   </script>
 </body>
 </html>
-""" % {"schema": SCHEMA_URL}
+""".replace(_PLACEHOLDER_SCHEMA, SCHEMA_URL)
 
 _REDOC = """<!DOCTYPE html>
 <html lang="pt">
@@ -65,11 +70,11 @@ _REDOC = """<!DOCTYPE html>
   <style>body { margin: 0; padding: 0; }</style>
 </head>
 <body>
-  <redoc spec-url="%(schema)s"></redoc>
+  <redoc spec-url="__SCHEMA_URL__"></redoc>
   <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
 </body>
 </html>
-""" % {"schema": SCHEMA_URL}
+""".replace(_PLACEHOLDER_SCHEMA, SCHEMA_URL)
 
 
 def docs(request):

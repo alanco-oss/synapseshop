@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, Header
-
 from models import Categoria
 
 

@@ -1,13 +1,14 @@
-from sqlalchemy import Column, Integer, String, Enum
-from database import Base
 import enum
 
+from database import Base
+from sqlalchemy import Column, Enum, Integer, String
 
-class UserRole(str, enum.Enum):
-    
+
+class UserRole(enum.StrEnum):
     ADMIN = "admin"
     USER = "user"
-    
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -16,4 +17,4 @@ class User(Base):
     nome = Column(String(100), nullable=False)
     senha_hash = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.USER)
-    
+

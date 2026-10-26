@@ -9,7 +9,7 @@ class UserResponse(BaseModel):
     email: str
     nome: str
     role: str
-    
+
 class UserPaginados(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

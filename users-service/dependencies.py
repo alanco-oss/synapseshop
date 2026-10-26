@@ -1,12 +1,11 @@
 # dependencies.py
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
-
 from database import SessionLocal
-from repository.user_repository import UserRepository
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from repository.token_repository import TokenRepository
+from repository.user_repository import UserRepository
 from services.auth_service import AuthService, TokenExpiradoError, TokenInvalidoError
+from sqlalchemy.orm import Session
 
 security = HTTPBearer()
 
@@ -27,7 +26,9 @@ def get_usuario_atual(
     try:
         payload = auth_service.validar_token(credentials.credentials)
     except (TokenExpiradoError, TokenInvalidoError) as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)
+        ) from e
     return payload
 
 

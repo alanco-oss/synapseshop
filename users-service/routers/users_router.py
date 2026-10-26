@@ -1,10 +1,9 @@
+from dependencies import exigir_admin, get_db
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-
-from dependencies import get_db, exigir_admin
 from models.user import UserRole
 from repository.user_repository import UserRepository
 from schemas import UserPaginados
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 

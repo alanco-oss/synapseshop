@@ -1,11 +1,10 @@
 import os
 
 from fastapi import FastAPI
+from rate_limiter import limiter
+from routers import auth_router, users_router
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
-from rate_limiter import limiter
-from routers import users_router, auth_router
 
 APP_NAME = os.getenv("APP_NAME", "synapseshop-users")
 

@@ -26,7 +26,7 @@ import logging
 import os
 import socket
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from asgiref.sync import sync_to_async
@@ -54,7 +54,7 @@ def _latencia_ms(mensagem):
         evento = json.loads(mensagem.value)
         ocorrido = datetime.fromisoformat(evento["occurred_at"])
         return (
-            datetime.now(timezone.utc) - ocorrido
+            datetime.now(UTC) - ocorrido
         ).total_seconds() * 1000
     except Exception:
         return -1.0

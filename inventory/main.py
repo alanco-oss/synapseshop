@@ -3,7 +3,6 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-
 from router import router
 
 APP_NAME = os.getenv("APP_NAME", "synapseshop-inventory")

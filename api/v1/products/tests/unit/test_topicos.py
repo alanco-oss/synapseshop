@@ -32,7 +32,7 @@ class FakeAdmin:
 
     async def describe_topics(self, nomes):
         return [
-            {"topic": nome, "partitions": [i for i in range(self.particoes.get(nome, 1))]}
+            {"topic": nome, "partitions": list(range(self.particoes.get(nome, 1)))}
             for nome in nomes
         ]
 
@@ -160,7 +160,6 @@ def test_particoes_aceita_dict_e_objeto():
 
 
 def test_garantir_com_retry_repete_ate_conseguir(monkeypatch):
-    tentativas = []
     atrasos = []
     chamadas = {"n": 0}
 

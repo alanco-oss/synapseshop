@@ -1,6 +1,6 @@
 import bcrypt
-from repository.user_repository import UserRepository
 from models.user import User
+from repository.user_repository import UserRepository
 
 
 class EmailJaExisteError(Exception):

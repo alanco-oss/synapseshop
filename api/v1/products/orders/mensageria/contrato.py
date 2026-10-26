@@ -24,7 +24,7 @@ Formato (JSON UTF-8 no topico ``pedidos.criado``)::
     }
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 TIPO_EVENTO = "PedidoCriado"
 CAMPOS_OBRIGATORIOS = (
@@ -47,7 +47,7 @@ def construir_pedido_criado(pedido):
     return {
         "event_id": str(uuid.uuid4()),
         "event_type": TIPO_EVENTO,
-        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "occurred_at": datetime.now(UTC).isoformat(),
         "idempotency_key": chave_idempotencia(pedido.pk),
         "payload": {
             "pedido_id": pedido.pk,
@@ -97,7 +97,7 @@ def construir_pagamento_simulado(pedido, aprovado):
     return {
         "event_id": str(uuid.uuid4()),
         "event_type": TIPO_PAGAMENTO,
-        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "occurred_at": datetime.now(UTC).isoformat(),
         "idempotency_key": chave_idempotencia_pagamento(pedido.pk),
         "payload": {
             "pedido_id": pedido.pk,

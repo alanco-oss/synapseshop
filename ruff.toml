@@ -1,0 +1,55 @@
+# Configuracao do Ruff — Onda 0 (rede de seguranca do projeto).
+#
+# Objetivo: um unico comando (`ruff check .`) que apanha erros reais
+# (imports mortos, redefinicoes, excecoes sem encadeamento, codigo nao usado)
+# sem criar ruido de estilo. O comprimento da linha e o que o formatador
+# trata, por isso `E501` fica desligado aqui.
+
+line-length = 100
+target-version = "py312"
+
+extend-exclude = [
+    ".venv",
+    "__pycache__",
+    ".git",
+    "*.egg-info",
+]
+
+[lint]
+select = [
+    "E",    # pycodestyle (erros)
+    "W",    # pycodestyle (avisos)
+    "F",    # pyflakes (imports mortos, redefinicoes, variaveis nao usadas)
+    "I",    # isort (ordem dos imports)
+    "UP",   # pyupgrade (sintaxe moderna do Python)
+    "B",    # flake8-bugbear (armadilhas de codigo)
+    "C4",   # simplificacoes de comprehension
+]
+
+ignore = [
+    "E501",  # o comprimento da linha e gerido pelo formatador
+    "B008",  # `Depends()`/`Header()` em defaults: padrao documentado do FastAPI
+]
+
+[lint.per-file-ignores]
+# Os imports dos modelos servem para registar as tabelas em `Base.metadata`;
+# sem eles o `alembic revision --autogenerate` nao deteta alteracoes.
+"users-service/alembic/env.py" = ["F401"]
+
+# `from .settings import *` e a forma canonica de um settings module do Django.
+"api/v1/products/products/settings.py" = ["F403", "F405"]
+"api/v1/products/products/settings_test.py" = ["F403", "F405"]
+
+[lint.isort]
+known-first-party = [
+    "assist",
+    "catalog",
+    "inventory",
+    "orders",
+    "products",
+    "users_service",
+]
+
+[lint.flake8-bugbear]
+# `raise ... from err` e obrigatorio onde ha reencaminhamento de excecao.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query", "fastapi.Path", "fastapi.Body"]

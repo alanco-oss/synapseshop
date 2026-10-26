@@ -1,0 +1,130 @@
+# Pipeline de Continuous Integration do SynapseShop (Onda 0 — rede de seguranca).
+#
+# Objetivos:
+# 1. correr a suite de testes nos dois motores de base de dados suportados
+#    (SQLite e PostgreSQL) para garantir que nenhuma query depende de um deles;
+# 2. prender a regressao de cobertura de codigo;
+# 3. correr o linter (ruff) e o lint do contrato OpenAPI (Spectral);
+# 4. garantir que as imagens Docker ainda sao construidas.
+#
+# Os passos sao deliberadamente rapidos e sem dependencias externas: o
+# `requirements.txt` da raiz inclui as dependencias de teste.
+
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  # Cobertura minima aceite. A suite esta em 98%; o gate fica abaixo para
+  # absorver a variacao natural sem bloquear o merge por 1 ponto.
+  COVERAGE_MIN: "95"
+
+jobs:
+  testes:
+    name: Testes (motor ${{ matrix.engine }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [sqlite, postgres]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: synapse
+          POSTGRES_PASSWORD: synapseshop
+          POSTGRES_DB: synapseshop_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U synapse -d synapseshop_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Obter o codigo
+        uses: actions/checkout@v4
+
+      - name: Preparar Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Suite de testes
+        working-directory: api/v1/products
+        env:
+          DB_ENGINE: ${{ matrix.engine }}
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          POSTGRES_DB: synapseshop_test
+          POSTGRES_USER: synapse
+          POSTGRES_PASSWORD: synapseshop
+        run: pytest --cov-fail-under=${{ env.COVERAGE_MIN }}
+
+      - name: Publicar relatorio de cobertura
+        if: matrix.engine == 'sqlite'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura
+          path: api/v1/products/.coverage
+          if-no-files-found: warn
+
+  lint:
+    name: Lint (ruff + Spectral)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obter o codigo
+        uses: actions/checkout@v4
+
+      - name: Preparar Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Ruff
+        run: |
+          python -m pip install --upgrade pip ruff
+          ruff check .
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Spectral (contrato OpenAPI)
+        run: npx --yes @stoplight/spectral-cli@6 lint docs/openapi.yaml
+
+  build:
+    name: Build das imagens
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obter o codigo
+        uses: actions/checkout@v4
+
+      - name: Validar o docker-compose
+        run: docker compose config --quiet
+
+      - name: Build da API (Django)
+        run: docker build -t synapseshop-api:ci .
+
+      - name: Build do inventory (FastAPI)
+        run: docker build -t synapseshop-inventory:ci ./inventory

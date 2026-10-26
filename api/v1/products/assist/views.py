@@ -55,7 +55,7 @@ class AssistView(APIView):
                 duracao_ms,
                 exc.motivo,
             )
-            raise AssistenteIndisponivel(exc.motivo)
+            raise AssistenteIndisponivel(exc.motivo) from exc
         except ErroProvedor as exc:
             duracao_ms = round((time.monotonic() - inicio) * 1000, 2)
             logger.warning(
@@ -66,7 +66,7 @@ class AssistView(APIView):
             )
             raise ProvedorIndisponivel(
                 f"O provedor de LLM devolveu um erro (HTTP {exc.status})."
-            )
+            ) from exc
 
         logger.info(
             "acao=endpoint_assistir status=sucesso duracao_ms=%.2f",

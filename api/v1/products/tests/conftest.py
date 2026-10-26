@@ -13,7 +13,6 @@ Convenções da equipa:
 import os
 
 import pytest
-import requests
 from django.core.cache import cache
 from freezegun import freeze_time
 from rest_framework.test import APIClient

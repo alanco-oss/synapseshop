@@ -2,7 +2,6 @@ from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt
-
 from database import JWT_ALGORITHM, JWT_SECRET
 from repository.token_repository import TokenRepository
 from repository.user_repository import UserRepository

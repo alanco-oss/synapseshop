@@ -3,7 +3,20 @@ __pycache__/
 *.pyc
 *.sqlite3
 .env
-.postman/
+
+# `.postman/resources.yaml` e a ligacao ao workspace partilhado: tem de
+# estar no controlo de versao para toda a equipa usar o mesmo workspace.
+.postman/*local*
+
 .coverage
+.coverage.*
 htmlcov/
+coverage.xml
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+node_modules/
+dist/
+build/
+*.egg-info/

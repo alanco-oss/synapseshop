@@ -4,6 +4,7 @@ O ``AIOKafkaProducer`` real e substituído por um fake: o event loop de
 background e a máquina de estado do módulo são exercitados por inteiro, mas
 nenhum broker é contactado.
 """
+import asyncio
 import json
 
 import pytest
@@ -113,14 +114,13 @@ def test_obter_produtor_reutiliza_instancia_existente(monkeypatch):
 
 def test_arrancar_loop_espera_o_loop_ficar_pronto(monkeypatch):
     """Cobre a espera ativa (``time.sleep``) enquanto o event loop não arranca."""
-    monkeypatch.setattr(
-        produtor, "_estado", {"loop": None, "produtor": None, "thread": None}
-    )
-    instantes = []
-    monkeypatch.setattr(produtor.time, "sleep", lambda s: instantes.append(s))
 
-    class LoopFalso:
+    class LoopFalso(asyncio.AbstractEventLoop):
+        """Loop valido (``asyncio.set_event_loop`` exige um ``AbstractEventLoop``)
+        mas que nunca entra em ``run_forever``."""
+
         def __init__(self):
+            super().__init__()
             self.verificacoes = 0
 
         def run_forever(self):
@@ -129,6 +129,12 @@ def test_arrancar_loop_espera_o_loop_ficar_pronto(monkeypatch):
         def is_running(self):
             self.verificacoes += 1
             return self.verificacoes > 1
+
+    monkeypatch.setattr(
+        produtor, "_estado", {"loop": None, "produtor": None, "thread": None}
+    )
+    instantes = []
+    monkeypatch.setattr(produtor.time, "sleep", lambda s: instantes.append(s))
 
     monkeypatch.setattr(produtor.asyncio, "new_event_loop", lambda: LoopFalso())
 

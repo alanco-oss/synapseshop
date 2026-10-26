@@ -1,8 +1,8 @@
 
 
 from database import SessionLocal
-from repository.user_repository import UserRepository
 from repository.token_repository import TokenRepository
+from repository.user_repository import UserRepository
 from services.auth_service import AuthService, CredenciaisInvalidasError
 
 db = SessionLocal()

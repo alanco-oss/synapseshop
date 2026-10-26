@@ -1,17 +1,17 @@
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class Categoria(str, Enum):
+class Categoria(StrEnum):
     catalog = "catalog"
     orders = "orders"
     payment = "payment"
     notification = "notification"
 
 
-class TipoMovimento(str, Enum):
+class TipoMovimento(StrEnum):
     entrada = "entrada"
     saida = "saida"
 

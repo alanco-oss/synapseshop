@@ -1,6 +1,8 @@
-from sqlalchemy.orm import Session
-from models.token import Token
 from datetime import datetime
+
+from models.token import Token
+from sqlalchemy.orm import Session
+
 
 class TokenRepository:
     def __init__(self, db: Session):

@@ -1,0 +1,29 @@
+# Convencoes de edicao partilhadas por todos os editores do projeto.
+# Complementa o ruff.toml (Python) e o .gitattributes (finais de linha).
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+[*.{yml,yaml,json,toml,cfg,ini}]
+indent_size = 2
+
+[*.md]
+indent_size = 2
+# Markdown usa dois espacos no fim da linha para quebras Hard: nao cortar.
+trim_trailing_whitespace = false
+
+[*.{js,css,html}]
+indent_size = 2
+
+[Makefile]
+indent_style = tab

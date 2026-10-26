@@ -1,0 +1,33 @@
+# Finais de linha normalizados (Onda 0).
+#
+# O repositorio guarda tudo em LF. Sem esta regra, o `core.autocrlf=true` do
+# Git no Windows converte para CRLF na copia de trabalho e vice-versa, o que
+# gera avisos ("LF will be replaced by CRLF") e ruido nos diffs entre
+# sistemas operativos diferentes.
+
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.ini   text eol=lf
+*.cfg   text eol=lf
+*.txt   text eol=lf
+*.svg   text eol=lf
+*.mmd   text eol=lf
+
+*.sh    text eol=lf
+Dockerfile text eol=lf
+
+# Ficheiros binarios: nunca converter.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.docx  binary
+*.xlsx  binary
