@@ -20,6 +20,9 @@ info:
       de validação replicados por campo.
     - **Assistente (Aula 14):** `POST /api/v1/assist/` resume ou explica logs
       no provedor de LLM; PII e segredos são redigidos antes do envio.
+    - **Texto-para-SQL (Aula 21):** `POST /api/v1/ask_sql/` converte uma
+      pergunta de negócio numa consulta `SELECT`/`WITH`, executa-a em modo
+      somente leitura e devolve o SQL gerado e os resultados.
 
     ## Cabeçalhos obrigatórios e opcionais
     - `Authorization: Bearer <token>` — reservado para autenticação; hoje a API
@@ -50,6 +53,8 @@ tags:
     description: Pedidos, pagamento simulado, cache e métricas de mensageria.
   - name: Assistente
     description: Resumo e explicação de logs via provedor de LLM.
+  - name: Consulta SQL
+    description: Consulta de dados em linguagem natural (Texto-para-SQL).
   - name: Documentação
     description: Artefactos de documentação (Swagger UI, ReDoc e schema).
 paths:
@@ -690,6 +695,62 @@ paths:
             $ref: '#/components/responses/GatewayInvalido'
           '503':
             $ref: '#/components/responses/AssistenteIndisponivel'
+  /api/v1/ask_sql/:
+    parameters:
+      - $ref: '#/components/parameters/TraceId'
+    post:
+      tags: [Consulta SQL]
+      operationId: consultarDadosEmLinguagemNatural
+      summary: Converte uma pergunta em SQL e devolve os resultados
+      description: |
+        Recebe uma pergunta de negócio em linguagem natural, constrói o prompt
+        com o schema das tabelas permitidas (`orders_order`, `catalog_item`,
+        `catalog_category`), pede à LLM uma única consulta `SELECT`/`WITH` e
+        executa-a em modo somente leitura, com `LIMIT` e timeout. Apenas
+        comandos de leitura são aceites; SQL insegura ou inválida devolve 422.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AskSqlEntrada'
+            example:
+              question: Quais os 5 últimos pedidos?
+              temperature: 0.0
+              max_tokens: 512
+      responses:
+        '200':
+          description: SQL gerado e resultado da consulta.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AskSqlResposta'
+              example:
+                question: Quais os 5 últimos pedidos?
+                sql: >-
+                  SELECT id, status, total, created_at FROM orders_order
+                  ORDER BY created_at DESC LIMIT 5
+                columns: [id, status, total, created_at]
+                results:
+                  - id: 12
+                    status: paid
+                    total: 129.9
+                    created_at: '2026-01-15T12:00:00Z'
+                row_count: 1
+                truncated: false
+                meta:
+                  tokens_prompt: 320
+                  tokens_output: 42
+                  llm_ms: 840.5
+                  execution_ms: 3.2
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/SQLInvalido'
+        '502':
+          $ref: '#/components/responses/GatewayInvalido'
+        '503':
+          $ref: '#/components/responses/AssistenteIndisponivel'
 components:
   securitySchemes:
     bearerAuth:
@@ -893,6 +954,18 @@ components:
             status: 503
             detail: 'O provedor de LLM nao respondeu apos 3 tentativas (HTTP 500).'
             instance: /api/v1/assist/
+    SQLInvalido:
+      description: A SQL gerada é insegura, inválida ou falhou na execução.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: about:blank
+            title: Entidade não processável
+            status: 422
+            detail: 'Comando nao permitido na consulta: DELETE.'
+            instance: /api/v1/ask_sql/
   schemas:
     Health:
       type: object
@@ -1331,3 +1404,80 @@ components:
           type: integer
           description: Tokens gerados pelo provedor.
           example: 45
+    AskSqlEntrada:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+          maxLength: 1000
+          description: Pergunta de negócio em linguagem natural.
+          example: Quais os 5 últimos pedidos?
+        temperature:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 0
+          example: 0.0
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 4096
+          default: 512
+          example: 512
+    AskSqlResposta:
+      type: object
+      required: [question, sql, columns, results, row_count, truncated, meta]
+      properties:
+        question:
+          type: string
+          description: Pergunta original enviada pelo cliente.
+          example: Quais os 5 últimos pedidos?
+        sql:
+          type: string
+          description: Consulta SQL validada e executada (com LIMIT aplicado).
+          example: >-
+            SELECT id, status, total, created_at FROM orders_order
+            ORDER BY created_at DESC LIMIT 5
+        columns:
+          type: array
+          items:
+            type: string
+          example: [id, status, total, created_at]
+        results:
+          type: array
+          description: Linhas devolvidas, cada uma como objeto coluna→valor.
+          items:
+            type: object
+            additionalProperties: true
+        row_count:
+          type: integer
+          description: Número de linhas devolvidas.
+          example: 1
+        truncated:
+          type: boolean
+          description: Indica se o resultado foi limitado pelo máximo configurado.
+          example: false
+        meta:
+          $ref: '#/components/schemas/AskSqlMeta'
+    AskSqlMeta:
+      type: object
+      required: [tokens_prompt, tokens_output, llm_ms, execution_ms]
+      properties:
+        tokens_prompt:
+          type: integer
+          example: 320
+        tokens_output:
+          type: integer
+          example: 42
+        llm_ms:
+          type: number
+          format: float
+          description: Duração da chamada à LLM em milissegundos.
+          example: 840.5
+        execution_ms:
+          type: number
+          format: float
+          description: Duração da execução SQL em milissegundos.
+          example: 3.2

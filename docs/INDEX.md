@@ -48,4 +48,5 @@
 | Catálogo | `api/v1/products/catalog/` | Categories, Items |
 | Pedidos | `api/v1/products/orders/` | Orders, Cache, Mensageria Kafka |
 | Assistente IA | `api/v1/products/assist/` | LLM resiliente com redaction |
+| Texto-para-SQL | `api/v1/products/ask_sql/` | `/api/v1/ask_sql` com allow-list e execução read-only |
 | Core/Config | `api/v1/products/products/` | Settings, URLs, middleware, exceptions |

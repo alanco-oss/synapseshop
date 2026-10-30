@@ -17,6 +17,7 @@ TITULOS = {
     405: "Método não permitido",
     409: "Conflito de estado",
     415: "Tipo de mídia não suportado",
+    422: "Entidade não processável",
     429: "Demasiadas requisições",
     500: "Erro interno do servidor",
     502: "Gateway inválido",

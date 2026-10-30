@@ -30,4 +30,5 @@ urlpatterns = [
     path('api/v1/', include('catalog.urls')),
     path('api/v1/', include('orders.urls')),
     path('api/v1/', include('assist.urls')),
+    path('api/v1/', include('ask_sql.urls')),
 ]

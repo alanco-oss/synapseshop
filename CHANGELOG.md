@@ -4,6 +4,32 @@ Todas as alterações relevantes do SynapseShop. O formato segue
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto adota
 versionamento por rota (`/api/v1/`).
 
+## [Aula 22] — Pipeline de CI/CD com GitHub Actions
+
+### Adicionado
+- Badge de status da CI no topo do `README.md` e secção "Aula 22" com gatilhos,
+  jobs, reprodução local e configuração de segredos.
+- `docs/aulas/AULA_22.md` — arquitetura do pipeline, matriz SQLite/PostgreSQL,
+  *troubleshooting* e checklist do DoD.
+- Suporte a `SECRET_KEY` por variável de ambiente em
+  `api/v1/products/products/settings.py`, mantendo a chave de desenvolvimento
+  como *fallback*.
+
+### Alterado
+- `.github/workflows/ci.yml` — reorganizado nos jobs `test-and-lint` (matriz
+  SQLite/PostgreSQL, ruff, Spectral, *gate* de cobertura de 95%) e
+  `docker-build` (`docker compose config` e build de `synapseshop-api:test` e
+  `synapseshop-inventory:test`), com `needs` para o build só correr após os
+  testes. Adicionados `permissions: contents: read` e `concurrency`.
+- `README.md` — lista de documentação por aula passa a incluir a Aula 22.
+- `specs/README.md` — índice atualizado com as Aulas 19 a 22.
+- `PROMPTS.md` e `docs/historico/PROMPTS.md` — registo dos prompts e decisões
+  da Aula 22.
+
+### Sem impacto no exterior
+- Contrato HTTP `/api/v1/*` e `docs/openapi.yaml` inalterados.
+- Nenhum segredo é versionado; `.env` continua ignorado pelo Git.
+
 ## [Otimização — Onda 0] — Rede de segurança: CI, lint e testes sem Docker
 
 ### Adicionado
@@ -58,6 +84,45 @@ versionamento por rota (`/api/v1/`).
 ### Sem impacto no exterior
 - Contrato HTTP `/api/v1/*` inalterado; `docs/openapi.yaml` inalterado; a
   coleção Postman inalterada.
+
+## [Aula 21] — Consulta de Dados em Linguagem Natural (Texto-para-SQL)
+
+### Adicionado
+- App `ask_sql` (`api/v1/products/ask_sql/`) com `POST /api/v1/ask_sql`
+  (aceita também a forma com barra final).
+- Geração de schema a partir de `Model._meta` (`orders_order`, `catalog_item`,
+  `catalog_category`) injetada no prompt da LLM.
+- Extração do SQL aceitando JSON, JSON em markdown, bloco ` ```sql ` e SQL puro.
+- Segurança: allow-list de tabelas/colunas, apenas `SELECT`/`WITH`, bloqueio de
+  DML/DDL e comentários, injeção de `LIMIT`, transação read-only no PostgreSQL
+  (`SET TRANSACTION READ ONLY`) e `PRAGMA query_only` no SQLite.
+- Execução com `statement_timeout`, limite de linhas (`ASK_SQL_MAX_ROWS`) e
+  conversão de `Decimal`/data/hora/UUID/bytes para JSON.
+- Aba **"Consulta em Linguagem Natural"** no Streamlit, com pergunta, exemplos,
+  SQL gerado (`st.code`) e resultados (`st.dataframe`).
+- Testes: `test_ask_sql_endpoint.py`, `test_ask_sql_prompts.py`,
+  `test_sql_extraction.py`, `test_sql_safety.py` e `test_sql_execution.py`
+  (47 testes; suíte completa **270 verdes**, 96%).
+
+### Alterado
+- `assist/llm_service.py`: `chamar_llm_com_mensagens()` reutilizável por outros
+  apps; `/assist` mantém o contrato. `assist/telemetry.py` aceita `acao`.
+- `products/settings.py`/`urls.py`: registo do app e da rota `ask_sql`.
+- `products/exceptions.py`: `TITULOS` ganhou `422` (entidade não processável).
+- `requirements.txt` (`sqlparse==0.5.3`), `pytest.ini` (`--cov=ask_sql`),
+  `dashboard/requirements.txt` (`httpx==0.27.2`) e `docker-compose.yml`
+  (envs `ASK_SQL_*` e `API_BASE_URL` no dashboard).
+- `docs/openapi.yaml`: tag `Consulta SQL`, path `/api/v1/ask_sql/`, schemas
+  `AskSqlEntrada`/`AskSqlResposta`/`AskSqlMeta` e resposta 422 `SQLInvalido`.
+- Coleção Postman com a pasta `Consulta SQL` (200/400/422/503).
+- `README.md`, `docs/aulas/AULA_21.md`, `docs/INDEX.md` e `PROMPTS.md`.
+
+### Escopo
+- Validação automática com provedor fake (offline). A validação com perguntas
+  reais contra o provedor LLM exige `LLM_API_KEY` e fica pendente em ambiente
+  com chave configurada.
+- O endpoint continua anónimo, como o resto da API; a allow-list limita
+  mutações, mas não leitura. Autenticação/throttle ficam para aula futura.
 
 ## [Aula 14] — Assistente de IA com `llm_service` resiliente
 

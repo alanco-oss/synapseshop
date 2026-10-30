@@ -18,3 +18,8 @@
 - Contexto: Implementacao de conexao segura com SSL/TLS, pooling, consultas parametrizadas (mitigacao SQLi), painel Streamlit com filtros/cache e orquestracao via Docker Compose com live reload.
 - Decisoes: Criado modulo dashboard/ isolado com db.py (SQLAlchemy + timeouts + sslmode=require), app.py com @st.cache_data(ttl=60), Dockerfile proprio e bind-mount.
 - Validacao: Consultas parametrizadas com text() + params, filtros dinâmicos por data/status; painel em http://localhost:8501
+
+## Aula 22 - Pipeline de CI/CD com GitHub Actions
+- Contexto: Automatizar lint, testes e validacao do build Docker a cada push/pull request, sem publicar imagens (CD fica para a Aula 23).
+- Decisoes: Workflow unico `ci.yml` com dois jobs (`test-and-lint` e `docker-build`), matriz SQLite/PostgreSQL preservada, gate de cobertura em 95%, `needs` para o build so correr apos os testes e `SECRET_KEY` lida do ambiente com fallback seguro.
+- Validacao: `ruff check .`, Spectral no OpenAPI, `pytest` nas duas bases, `docker compose config` e build de `synapseshop-api:test`/`synapseshop-inventory:test`; badge de status e instrucoes de secrets no README.

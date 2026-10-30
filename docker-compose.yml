@@ -80,14 +80,19 @@ services:
       LLM_CIRCUIT_TIMEOUT_ABERTO: ${LLM_CIRCUIT_TIMEOUT_ABERTO:-30}
       LLM_PRECO_INPUT_1M: ${LLM_PRECO_INPUT_1M:-0.15}
       LLM_PRECO_OUTPUT_1M: ${LLM_PRECO_OUTPUT_1M:-0.60}
+      # Texto-para-SQL (Aula 21)
+      ASK_SQL_MAX_ROWS: ${ASK_SQL_MAX_ROWS:-100}
+      ASK_SQL_TIMEOUT_MS: ${ASK_SQL_TIMEOUT_MS:-5000}
+      ASK_SQL_MAX_QUESTION_LENGTH: ${ASK_SQL_MAX_QUESTION_LENGTH:-1000}
+      ASK_SQL_DEFAULT_MAX_TOKENS: ${ASK_SQL_DEFAULT_MAX_TOKENS:-512}
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/health'); assert r.status==200"]
       interval: 30s
-      timeout: 5s
-      start_period: 15s
-      retries: 3
+      timeout: 10s
+      start_period: 30s
+      retries: 5
     depends_on:
       db:
         condition: service_healthy
@@ -182,6 +187,7 @@ services:
       # O Postgres do compose nao tem TLS configurado; prefer tenta TLS e
       # recorre a ligacao normal. Em producao defina DB_SSLMODE=require.
       DB_SSLMODE: ${DB_SSLMODE:-prefer}
+      API_BASE_URL: ${DASHBOARD_API_BASE_URL:-http://api:8000}
     volumes:
       # bind-mount para live reload (Aula 19)
       - ./dashboard:/app

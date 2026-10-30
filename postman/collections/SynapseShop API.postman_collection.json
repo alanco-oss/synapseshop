@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "3a7d0c1e-b2f4-4e6a-9c1d-5f8e2a0b7c4d",
     "name": "SynapseShop API",
-    "description": "Coleção dos endpoints da API SynapseShop (Aulas 13 e 14). Prefixo versionado /api/v1/. Recursos: Categorias (nome, descricao), Itens (nome, descricao, preco, estoque, categoria), Pedidos (user_id, status, total, created_at) e Assistente (resumo/explicação de logs via LLM). Convenções: paginação opcional via ?page=&limit=, filtros por igualdade (ex.: ?status=pending) e ordenação ?sort=campo:asc|desc. Cabeçalhos: Authorization (Bearer), Idempotency-Key (POST) e X-Trace-Id. Documentação interativa em /api/v1/docs/ (Swagger UI) e /api/v1/redoc/ (ReDoc); contrato em /api/v1/schema/. Assistente (Aula 14): POST /api/v1/assist/ resume ou explica logs via provedor de LLM (PII e segredos redigidos; 400/502/503).",
+    "description": "Coleção dos endpoints da API SynapseShop (Aulas 13 e 14). Prefixo versionado /api/v1/. Recursos: Categorias (nome, descricao), Itens (nome, descricao, preco, estoque, categoria), Pedidos (user_id, status, total, created_at) e Assistente (resumo/explicação de logs via LLM). Convenções: paginação opcional via ?page=&limit=, filtros por igualdade (ex.: ?status=pending) e ordenação ?sort=campo:asc|desc. Cabeçalhos: Authorization (Bearer), Idempotency-Key (POST) e X-Trace-Id. Documentação interativa em /api/v1/docs/ (Swagger UI) e /api/v1/redoc/ (ReDoc); contrato em /api/v1/schema/. Assistente (Aula 14): POST /api/v1/assist/ resume ou explica logs via provedor de LLM (PII e segredos redigidos; 400/502/503). Consulta SQL (Aula 21): POST /api/v1/ask_sql/ converte uma pergunta de negócio em SELECT/WITH, executa em modo somente leitura e devolve o SQL e os resultados (400/422/502/503).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -654,6 +654,73 @@
             },
             "description": "Explica um log com temperature 0 (determinístico)."
           }
+        }
+      ]
+    },
+    {
+      "name": "Consulta SQL",
+      "item": [
+        {
+          "name": "Pergunta em linguagem natural",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Trace-Id", "value": "{{traceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Quais os 5 últimos pedidos?\",\n  \"temperature\": 0,\n  \"max_tokens\": 512\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ask_sql",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "ask_sql"]
+            },
+            "description": "Converte a pergunta em SQL, executa em modo somente leitura e devolve `sql`, `columns`, `results`, `row_count`, `truncated` e `meta`."
+          },
+          "response": [
+            {
+              "name": "200 — SQL e resultados",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{\n  \"question\": \"Quais os 5 últimos pedidos?\"\n}" }, "url": { "raw": "{{baseUrl}}/api/v1/ask_sql", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ask_sql"] } },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"question\": \"Quais os 5 últimos pedidos?\",\n  \"sql\": \"SELECT id, status, total, created_at FROM orders_order ORDER BY created_at DESC LIMIT 5\",\n  \"columns\": [\"id\", \"status\", \"total\", \"created_at\"],\n  \"results\": [\n    { \"id\": 12, \"status\": \"paid\", \"total\": 129.9, \"created_at\": \"2026-01-15T12:00:00Z\" }\n  ],\n  \"row_count\": 1,\n  \"truncated\": false,\n  \"meta\": { \"tokens_prompt\": 320, \"tokens_output\": 42, \"llm_ms\": 840.5, \"execution_ms\": 3.2 }\n}"
+            },
+            {
+              "name": "400 — payload invalido",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{}" }, "url": { "raw": "{{baseUrl}}/api/v1/ask_sql", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ask_sql"] } },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Requisição inválida\",\n  \"status\": 400,\n  \"detail\": \"Requisição inválida\",\n  \"instance\": \"/api/v1/ask_sql\"\n}"
+            },
+            {
+              "name": "422 — SQL invalida ou insegura",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{\n  \"question\": \"apaga os pedidos\"\n}" }, "url": { "raw": "{{baseUrl}}/api/v1/ask_sql", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ask_sql"] } },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Entidade não processável\",\n  \"status\": 422,\n  \"detail\": \"Comando nao permitido na consulta: DELETE.\",\n  \"instance\": \"/api/v1/ask_sql\"\n}"
+            },
+            {
+              "name": "503 — LLM indisponivel",
+              "originalRequest": { "method": "POST", "header": [], "body": { "mode": "raw", "raw": "{\n  \"question\": \"Quais os 5 últimos pedidos?\"\n}" }, "url": { "raw": "{{baseUrl}}/api/v1/ask_sql", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ask_sql"] } },
+              "status": "Service Unavailable",
+              "code": 503,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Serviço indisponível\",\n  \"status\": 503,\n  \"detail\": \"O provedor de LLM nao respondeu apos 3 tentativas (HTTP 500).\",\n  \"instance\": \"/api/v1/ask_sql\"\n}"
+            }
+          ]
         }
       ]
     },

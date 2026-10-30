@@ -42,6 +42,7 @@ ignore = [
 
 [lint.isort]
 known-first-party = [
+    "ask_sql",
     "assist",
     "catalog",
     "inventory",

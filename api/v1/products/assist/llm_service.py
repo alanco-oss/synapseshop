@@ -91,20 +91,19 @@ def _procesar_sucesso(resposta):
     }
 
 
-def chamar_llm(mode, logs_redigidos, temperature, max_tokens):
-    """Chamada resiliente ao provedor.
+def chamar_llm_com_mensagens(messages, temperature, max_tokens, acao="assistir"):
+    """Chamada resiliente ao provedor com ``messages`` ja construidas.
 
     Devolve ``{"answer", "tokens_prompt", "tokens_output"}``. Levanta
     ``ErroProvedor`` para 4xx deterministicos e ``ServicoIndisponivel`` quando
     o circuito esta aberto ou as retentativas esgotam.
     """
     if not INTERRUPTOR.permitir():
-        registar_bloqueio()
+        registar_bloqueio(acao=acao)
         raise ServicoIndisponivel(
             "O assistente esta indisponivel (circuito aberto). Tente mais tarde."
         )
 
-    messages = prompts.montar_mensagens(mode, logs_redigidos)
     ultima_falha = None
     tentativas = config.LLM_RETRIES
 
@@ -113,7 +112,9 @@ def chamar_llm(mode, logs_redigidos, temperature, max_tokens):
             resposta = _requisicao(messages, temperature, max_tokens)
         except (requests.Timeout, requests.ConnectionError) as exc:
             ultima_falha = type(exc).__name__
-            registrar_chamada(tentativa, tentativas, "falha", erro=ultima_falha)
+            registrar_chamada(
+                tentativa, tentativas, "falha", erro=ultima_falha, acao=acao
+            )
             if tentativa < tentativas:
                 _dormir(tentativa)
             continue
@@ -129,6 +130,7 @@ def chamar_llm(mode, logs_redigidos, temperature, max_tokens):
                 duracao_ms=resposta.duracao_ms,
                 tokens_prompt=resultado["tokens_prompt"],
                 tokens_output=resultado["tokens_output"],
+                acao=acao,
             )
             return resultado
 
@@ -142,6 +144,7 @@ def chamar_llm(mode, logs_redigidos, temperature, max_tokens):
             "falha",
             duracao_ms=resposta.duracao_ms,
             erro=ultima_falha,
+            acao=acao,
         )
         if tentativa < tentativas:
             _dormir(tentativa)
@@ -153,5 +156,17 @@ def chamar_llm(mode, logs_redigidos, temperature, max_tokens):
     )
 
 
-def registar_bloqueio():
-    logger.warning("acao=assistir status=bloqueado circuito=open modo=short-circuit")
+def chamar_llm(mode, logs_redigidos, temperature, max_tokens):
+    """Chamada resiliente do assistente de logs (Aula 14)."""
+    return chamar_llm_com_mensagens(
+        prompts.montar_mensagens(mode, logs_redigidos),
+        temperature,
+        max_tokens,
+        acao="assistir",
+    )
+
+
+def registar_bloqueio(acao="assistir"):
+    logger.warning(
+        "acao=%s status=bloqueado circuito=open modo=short-circuit", acao
+    )

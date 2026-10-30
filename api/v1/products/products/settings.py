@@ -21,12 +21,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-w0r(e-wd8zc6hq7!zwi1z4i!1cy-w)#wx=y-5q9al0soat@nzd'
+# Em producao/CI o valor vem da variavel de ambiente SECRET_KEY; o fallback
+# mantem o desenvolvimento local e a suite de testes a funcionar sem configuracao.
+SECRET_KEY = os.getenv(
+    "SECRET_KEY",
+    "django-insecure-w0r(e-wd8zc6hq7!zwi1z4i!1cy-w)#wx=y-5q9al0soat@nzd",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.getenv("ALLOWED_HOSTS", "localhost,api,127.0.0.1,testserver,api").split(",")
+    if h.strip()
+]
 
 
 # Application definition
@@ -42,6 +51,7 @@ INSTALLED_APPS = [
     'catalog.apps.CatalogConfig',
     'orders.apps.OrdersConfig',
     'assist.apps.AssistConfig',
+    'ask_sql.apps.AskSqlConfig',
 ]
 
 MIDDLEWARE = [

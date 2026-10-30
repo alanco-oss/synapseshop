@@ -32,9 +32,10 @@ def registrar_chamada(
     erro=None,
     tokens_prompt=None,
     tokens_output=None,
+    acao="assistir",
 ):
     """Regista uma tentativa de chamada ao provedor num log estruturado."""
-    campos = f"acao=assistir status={status} tentativa={tentativa}/{tentativas}"
+    campos = f"acao={acao} status={status} tentativa={tentativa}/{tentativas}"
     if duracao_ms is not None:
         campos += f" duracao_ms={duracao_ms}"
     if erro is not None:

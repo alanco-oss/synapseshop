@@ -23,6 +23,10 @@
 | Aula 12 | [specs_da_aula_12.md](specs_da_aula_12.md) | - |
 | Aula 13 | [specs_da_aula_13.md](specs_da_aula_13.md) | - |
 | Aula 14 | [specs_da_aula_14.md](specs_da_aula_14.md) | [issues_da_aula_14.md](issues_da_aula_14.md) |
+| Aula 19 | [spec_da_aula_19.md](spec_da_aula_19.md) | - |
+| Aula 20 | [spec_da_aula_20.md](spec_da_aula_20.md) | - |
+| Aula 21 | [spec_da_aula_21.md](spec_da_aula_21.md) | - |
+| Aula 22 | [spec_da_aula_22.md](spec_da_aula_22.md) | - |
 
 ## Issues por Aula
 | Arquivo | Descrição |

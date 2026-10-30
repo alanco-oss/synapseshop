@@ -1,4 +1,4 @@
-# Pipeline de Continuous Integration do SynapseShop (Onda 0 — rede de seguranca).
+# Pipeline de Continuous Integration do SynapseShop (Aula 22).
 #
 # Objetivos:
 # 1. correr a suite de testes nos dois motores de base de dados suportados
@@ -8,7 +8,13 @@
 # 4. garantir que as imagens Docker ainda sao construidas.
 #
 # Os passos sao deliberadamente rapidos e sem dependencias externas: o
-# `requirements.txt` da raiz inclui as dependencias de teste.
+# `requirements.txt` da raiz inclui as dependencias de teste. O ruff e instalado
+# a parte para nao entrar na imagem de producao.
+#
+# Os segredos reais nunca sao commitados: `SECRET_KEY` vem de
+# Settings -> Secrets and variables -> Actions e tem um fallback seguro para
+# pull requests de forks. As credenciais `POSTGRES_*` abaixo sao efemeras,
+# criadas apenas para o servico do job.
 
 name: CI
 
@@ -23,15 +29,21 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   PYTHON_VERSION: "3.12"
-  # Cobertura minima aceite. A suite esta em 98%; o gate fica abaixo para
+  # Cobertura minima aceite. A suite esta em ~96%; o gate fica abaixo para
   # absorver a variacao natural sem bloquear o merge por 1 ponto.
   COVERAGE_MIN: "95"
+  # Segredo opcional: sem ele o CI usa uma chave de desenvolvimento. Nunca
+  # coloque a chave de producao no repositorio.
+  SECRET_KEY: ${{ secrets.SECRET_KEY || 'ci-insecure-secret-key' }}
 
 jobs:
-  testes:
-    name: Testes (motor ${{ matrix.engine }})
+  test-and-lint:
+    name: Testes e lint (${{ matrix.engine }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -67,7 +79,20 @@ jobs:
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt ruff
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Preparar Node
+        if: matrix.engine == 'sqlite'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Spectral (contrato OpenAPI)
+        if: matrix.engine == 'sqlite'
+        run: npx --yes @stoplight/spectral-cli@6 lint docs/openapi.yaml
 
       - name: Suite de testes
         working-directory: api/v1/products
@@ -88,34 +113,10 @@ jobs:
           path: api/v1/products/.coverage
           if-no-files-found: warn
 
-  lint:
-    name: Lint (ruff + Spectral)
+  docker-build:
+    name: Build Docker
     runs-on: ubuntu-latest
-    steps:
-      - name: Obter o codigo
-        uses: actions/checkout@v4
-
-      - name: Preparar Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Ruff
-        run: |
-          python -m pip install --upgrade pip ruff
-          ruff check .
-
-      - name: Preparar Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Spectral (contrato OpenAPI)
-        run: npx --yes @stoplight/spectral-cli@6 lint docs/openapi.yaml
-
-  build:
-    name: Build das imagens
-    runs-on: ubuntu-latest
+    needs: test-and-lint
     steps:
       - name: Obter o codigo
         uses: actions/checkout@v4
@@ -124,7 +125,7 @@ jobs:
         run: docker compose config --quiet
 
       - name: Build da API (Django)
-        run: docker build -t synapseshop-api:ci .
+        run: docker build -t synapseshop-api:test .
 
       - name: Build do inventory (FastAPI)
-        run: docker build -t synapseshop-inventory:ci ./inventory
+        run: docker build -t synapseshop-inventory:test ./inventory
